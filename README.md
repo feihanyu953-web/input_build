@@ -13,37 +13,56 @@ skill）。`SKILL.md` 驱动 AI agent 按"自动探测结构 → 材料感知默
 > and will not distribute pseudopotentials (e.g. VASP POTCAR), vendor data
 > files, or any other licensed third-party content — bring your own.
 
+## What it generates
+
+| Code | Tasks covered (one base template each) |
+|---|---|
+| **VASP** (16) | relax · scf · md · slow-growth AIMD · dos · band · freq · phonopy · neb · bader · hse · dftu · workfunction · elf · optics · lepsilon |
+| **CP2K** (14) | scf · geo_opt · cell_opt · md · neb · band · dos · phonon · metadyn · workfunction · dftu · elf · hirshfeld · optics |
+| **LAMMPS** (8) | md · nve · minimize · mlff · conp (constant-potential electrode) · plumed · neb |
+
+Modifiers overlay small patches on top of a base template — dispersion (D4/TS),
+DFT+U, dipole correction, SOC, solvation (VASPsol), efield, optics, metagga,
+magnetic ordering for VASP; LAMMPS snippets for `fix efield/shake/wall`,
+Langevin ensemble, temp ramp, `dump full`, RDF/MSD/hbond analysis.
+
 ## Highlights
 
 - **Deterministic validation gate** — `scripts/validate_input.py` implements the
-  SKILL.md rule table (~70 rules) for VASP, CP2K and LAMMPS; exit code 1 on any
-  ERROR, so it can gate job-submission scripts too.
-- **48 golden examples** — 20 VASP (relax/SCF/AIMD/band/freq/phonopy/NEB/Bader/
-  HSE/DFT+U/workfunction/ELF/optics/slow-growth …), 15 CP2K (SCF → metadynamics),
-  9 LAMMPS (MD/minimize/NPT/NVE/efield/constant-potential/MLFF/plumed/NEB), and
-  4 kpoints-helper cases. Every example passes the validator.
+  SKILL.md rule table (~70 rules) for all three codes; exit code 1 on any ERROR,
+  so it can gate job-submission scripts too. Rules cover the classic failure
+  modes: tetrahedron smearing on relax, `IBRION=5` without `NSW`, hybrid band
+  workflows with `ICHARG=11`, Bader without `chgsum.pl`, funcfl/eam.alloy
+  pairing, barostat on a non-periodic direction, OT + k-points in CP2K,
+  all-zero DFT+U, `&ADDED_MOS` used as a section, and slow-growth AIMD
+  (ICONST syntax/arity, INCREM parsing, MDALGO compatibility, LBLUEOUT).
 - **Material-aware defaults** — metal slab / oxide surface / oxide bulk /
-  molecule classes, DFT+U LMAXMIX rule, ENCUT rules, magnetic-moment defaults.
+  molecule classes drive ENCUT, DFT+U `LMAXMIX`, and magnetic-moment defaults;
+  auto-detection reads your structure first and never asks about what it
+  already knows.
 - **Machine-readable template routing** — `base_templates/INDEX.json` maps task
-  → template → modifier list; modifier overlay semantics ("later modifier wins")
-  are enforced by tests.
+  → template → modifier list; the "later modifier wins" overlay semantics are
+  enforced by tests, and every generated input must re-pass the validator.
 - **LAMMPS engineering loop** — evidence collection (Phase A), provenance index
-  of official LAMMPS examples (Phase B), structured parser (Phase C),
-  byte-stable deterministic renderer (Phase D), scientific profiles
-  (Phase G: MLFF/MACE, interface water, constant-potential), read-only explainer
-  (Phase I).
+  of official LAMMPS examples (Phase B, 414 entries), structured input parser
+  (Phase C), byte-stable deterministic renderer with a generation spec (Phase D),
+  scientific profiles (Phase G: MLFF/MACE, interface water, constant-potential
+  electrode), and a read-only explainer for existing inputs (Phase I).
 - **Version gating** — VASP ≥ 6.3 (verified on 6.5.1 + VTST), CP2K ≥ 2024.3
-  (verified on 2026.1), LAMMPS ≥ 22Jul2025; templates carry explicit
-  version-gate comments where behavior changed.
+  (verified on 2026.1, with 2026.2 behavior gates), LAMMPS ≥ 22Jul2025
+  (`reax/c` → `reaxff`); templates carry explicit version-gate comments where
+  behavior changed across versions.
+- **48 golden examples** — every shipped example passes the validator
+  (`STATIC_PASS`), and the suite doubles as a regression harness.
 - **Zero-dependency core** — Python ≥ 3.11 standard library only; the full test
-  suite runs offline.
+  suite (821 tests) runs offline.
 
 ## Repository layout
 
 ```
 input_build/
 ├── SKILL.md            # the agent-facing workflow — start here
-├── base_templates/     # per-task base inputs + INDEX.json routing table
+├── base_templates/     # 38 per-task base inputs + INDEX.json routing table
 ├── modifiers/          # overlay snippets (dispersion, DFT+U, dipole, efield, SOC, fix_* …)
 ├── profiles/           # LAMMPS scientific profiles (mlff/mace, interface_water, constant_potential)
 ├── references/         # code-specific deep dives (VASP / CP2K / LAMMPS / kpoints)
@@ -51,7 +70,7 @@ input_build/
 ├── scripts/            # validate_input.py (the gate), LAMMPS renderer/parser/evidence, kpoints helper
 │   └── smoke/          # optional integration tests against real simulation binaries
 ├── tests/              # 34 stdlib-unittest files (~820 tests), offline
-├── examples/           # 48 golden examples, indexed in examples/README.md
+├── examples/           # 48 golden examples: 20 VASP / 15 CP2K / 9 LAMMPS / 4 kpoints
 └── tools/              # maintainer sync + leak-gate script (not part of the skill)
 ```
 
@@ -67,7 +86,7 @@ input_build/
 ## Install
 
 ```bash
-git clone https://github.com/<you>/input_build.git
+git clone https://github.com/feihanyu953-web/input_build.git
 ```
 
 - **Claude Code** — user level: put the repo at `~/.claude/skills/input_build`;
@@ -111,6 +130,9 @@ python <skill-dir>/scripts/validate_input.py --lammps input.md
 python <skill-dir>/scripts/validate_input.py --examples-dir <skill-dir>/examples
 ```
 
+Exit code is 1 on any ERROR finding, so the validator can gate submission
+scripts directly.
+
 ## Tests
 
 ```bash
@@ -136,6 +158,20 @@ python run_smoke.py --only <case-id>
 
 Each case runs the real code and asserts *physics* (energies, temperatures,
 diffusion, bond angles), not just exit codes.
+
+## Ecosystem
+
+This skill is part of a small computational-materials toolchain:
+
+| Repo | Role |
+|---|---|
+| **emcbuild** | build DFT/MD starting structures (slabs, heterojunctions, electrolyte boxes) → feeds POSCAR / `system.data` into input_build |
+| **cluster-connect** | SSH bridge to HPC (Slurm/PBS, sandboxed file transfer) — submits what input_build generates |
+| **vaspkit-remote** | remote VASP post-processing on the cluster (bands/DOS/workfunction/MD) |
+| **lammps-analyze** | local trajectory analysis for the MD runs input_build sets up |
+
+Each works standalone; only the integrations listed above require the partner
+skill.
 
 ## Encoding & language
 
