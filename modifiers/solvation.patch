@@ -1,0 +1,36 @@
+# ==============================================================================
+# Implicit Solvation Modifier (VASPsol)
+# Description: Adds continuum solvation on top of the base task via the VASPsol patch
+# Apply when: Electrocatalysis / aqueous interface energetics without explicit water
+# ==============================================================================
+
+# PREREQUISITE: your VASP binary must be compiled with the VASPsol patch
+# (https://github.com/henniggroup/VASPsol, Mathew et al. JCP 140, 084106 (2014)).
+# On an unpatched binary these tags are silently ignored — after the first run
+# verify ACTUAL coupling, not just the presence of SOL lines:
+#   1. OUTCAR: the LAST-step 'Solvation Ediel_sol' must be NON-ZERO
+#      (a constant 0.00000000 means LSOL never coupled — the inert symptom
+#      observed on a real VASP 6.5.1 build), or
+#   2. vasprun.xml: must contain the solvent parameter block (LSOL / EB_K tags).
+
+LSOL     = .TRUE.   # Switch on implicit solvation (water, epsilon = 78.4 by default)
+EB_K     = 78.4     # Solvent relative permittivity (78.4 = water; 2-10 nonpolar; 5-15 ionic liquid)
+TAU      = 0.0      # Surface tension (eV/A^2). 0 = neglect cavitation term (robust default);
+                    # finite TAU needs a finer grid and careful ENCUT convergence
+
+# --- Electrolyte (linearized Poisson-Boltzmann) — uncomment for charged slabs / ionic strength ---
+# LAMBDA_D_K = 3.0  # Debye length (A); activates the electrolyte model
+# NC_K   = 3.7E-3   # Bulk ion concentration (atomic units); 3.7E-3 ~ 1 M
+
+# --- Cavity shape (rarely changed) ---
+# SIGMA_K  = 0.6    # Width of the dielectric cavity edge (A)
+
+# --- Optional output ---
+# LRHOB  = .TRUE.   # Write bound-charge density RHOB (slow for large cells;
+                    # run a separate static job from the converged WAVECAR instead)
+
+# Accuracy requirements (VASPsol USAGE.md):
+# - Cavitation energy needs a finer real-space resolution than vacuum runs:
+#   use PREC = Accurate and ENCUT >= 1.3 x your vacuum value.
+# - Recommended workflow: (1) vacuum calculation with LWAVE=.TRUE.,
+#   (2) solvation run restarted with ISTART=1 from the vacuum WAVECAR.

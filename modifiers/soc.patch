@@ -1,0 +1,22 @@
+# ==============================================================================
+# Spin-Orbit Coupling (SOC) Modifier
+# Description: Non-collinear calculation with spin-orbit coupling
+# Apply when: Heavy elements (Pt, Au, Pb, Bi, Ir, ...), SOC band splitting,
+#             magnetic anisotropy, or topological band structure
+# ==============================================================================
+# NOTES:
+# (a) Non-collinear SOC roughly DOUBLES the number of bands vs a scalar
+#     calculation — set NBANDS explicitly (~2x the scalar-relativistic value)
+#     and check it; the validator warns if NBANDS is missing.
+# (b) LMAXMIX is mandatory as for DFT+U: 4 for d-electron, 6 for f-electron
+#     systems (charge mixing across the augmented channels).
+# (c) ENCUT: use 1.3-1.5x the usual (scalar) value — SOC energies are sensitive
+#     to basis completeness.
+# (d) Magnetic moments in OUTCAR are the projections along SAXIS; interpret
+#     MAGMOM / local moments accordingly.
+
+LSORBIT  = .TRUE.      # Switch on non-collinear SOC (implies LNONCOLLINEAR)
+SAXIS    = 0 0 1       # Quantization axis (default z); in-plane: e.g. 1 0 0
+# NBANDS   = ...       # ~2x the scalar-relativistic NBANDS — set explicitly!
+# LMAXMIX  = 4         # d-electron systems
+# LMAXMIX  = 6         # f-electron systems

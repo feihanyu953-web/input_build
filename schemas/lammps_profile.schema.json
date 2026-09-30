@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lammps_profile.schema.json",
+  "title": "input_build LAMMPS Profile Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["profile_id","profile_version","trigger","required_spec_fields","renderer_extensions","static_rules","capability_requirements","smoke_protocol","l4_acceptance","unresolved_behavior","official_refs","post_run_handoff"],
+  "properties": {
+    "profile_id": {"type":"string","minLength":1,"pattern":"^[a-z][a-z0-9_]*(/[a-z][a-z0-9_]*)?$"},
+    "profile_version": {"const":1},
+    "trigger": {"type":"object","additionalProperties":false,"required":["activation","auto_infer"],"properties":{"activation":{"type":"string","minLength":1},"auto_infer":{"const":false},"spec_conditions":{"type":"array","items":{"type":"string","minLength":1}}}},
+    "required_spec_fields": {"type":"array","minItems":1,"items":{"type":"string","minLength":1}},
+    "renderer_extensions": {"type":"array","items":{"type":"object","additionalProperties":false,"required":["anchor","description","ordering"],"properties":{"anchor":{"type":"string","minLength":1},"description":{"type":"string","minLength":1},"ordering":{"type":"string","minLength":1},"conflict_anchors":{"type":"array","items":{"type":"string","minLength":1}}}}},
+    "static_rules": {"type":"array","items":{"type":"object","additionalProperties":false,"required":["code","severity","check_id","description"],"properties":{"code":{"type":"string","minLength":1,"pattern":"^[A-Z][A-Z0-9_]*$"},"severity":{"enum":["ERROR","WARN"]},"check_id":{"type":"string","minLength":1},"description":{"type":"string","minLength":1}}}},
+    "capability_requirements": {"type":"array","items":{"type":"object","additionalProperties":false,"required":["kind","value"],"properties":{"kind":{"enum":["package","pair_style","fix_style","kspace_style","compute_style"]},"value":{"type":"string","minLength":1}}}},
+    "smoke_protocol": {"type":"object","additionalProperties":false,"required":["steps","checks"],"properties":{"steps":{"type":"array","minItems":1,"items":{"type":"string","minLength":1}},"checks":{"type":"array","minItems":1,"items":{"type":"string","minLength":1}},"thresholds":{"type":"object"}}},
+    "l4_acceptance": {"type":"object","additionalProperties":false,"required":["required_evidence","fail_closed"],"properties":{"required_evidence":{"type":"array","minItems":1,"items":{"type":"object","additionalProperties":false,"required":["key","metric","blocks_without"],"properties":{"key":{"type":"string","minLength":1},"metric":{"type":"string","minLength":1},"blocks_without":{"enum":["L4","L3"]}}}},"fail_closed":{"const":true}}},
+    "unresolved_behavior": {"type":"array","items":{"type":"object","additionalProperties":false,"required":["missing_fact","blocks_level"],"properties":{"missing_fact":{"type":"string","minLength":1},"blocks_level":{"enum":["L0","L1","L2","L3","L4","L5"]}}}},
+    "official_refs": {"type":"array","minItems":1,"items":{"type":"string","minLength":1}},
+    "post_run_handoff": {"type":"object","additionalProperties":false,"required":["outputs","handoff_targets"],"properties":{"outputs":{"type":"array","minItems":1,"items":{"type":"string","minLength":1}},"handoff_targets":{"type":"array","minItems":1,"items":{"type":"string","minLength":1}}}}
+  }
+}

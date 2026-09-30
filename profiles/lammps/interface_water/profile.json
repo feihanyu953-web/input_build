@@ -1,0 +1,50 @@
+{
+  "profile_id": "interface_water",
+  "profile_version": 1,
+  "trigger": {
+    "activation": "explicit user selection of interface_water profile; never inferred from elements or file name alone",
+    "auto_infer": false,
+    "spec_conditions": ["system.has_h == true", "system.type_map contains O and H", "user provides water O type, H type, water model, flexibility"]
+  },
+  "required_spec_fields": ["system.has_h", "system.type_map", "system.periodicity", "system.atom_style", "potential.pair_style", "protocol.stages"],
+  "renderer_extensions": [
+    {"anchor": "constraints", "description": "emit fix shake only if user confirmed rigid classical water with bond and angle topology; never for MLFF flexible water", "ordering": "after all force-adding fixes, before integrator", "conflict_anchors": ["constraints"]},
+    {"anchor": "output", "description": "declare RDF, z-density and water-count analysis outputs; do not auto-select thresholds", "ordering": "after production fix, before run", "conflict_anchors": []}
+  ],
+  "static_rules": [
+    {"code": "WATER_HO_MAPPING_EXPLICIT", "severity": "ERROR", "check_id": "ho_type_mapping_declared", "description": "water O and H type IDs must be explicitly declared by the user in profile_context"},
+    {"code": "WATER_MODEL_DECLARED", "severity": "ERROR", "check_id": "water_model_declared", "description": "water model (SPC/E, TIP3P, TIP4P, flexible, MLFF) must be explicitly declared"},
+    {"code": "WATER_FLEXIBILITY_DECLARED", "severity": "ERROR", "check_id": "flexibility_declared", "description": "water flexibility (rigid or flexible) must be explicitly declared"},
+    {"code": "WATER_NO_SHAKE_MLFF_FLEXIBLE", "severity": "ERROR", "check_id": "no_shake_for_mlff_flexible", "description": "fix shake must not appear when water is MLFF flexible; SHAKE changes the model sampling space"},
+    {"code": "WATER_SHAKE_RIGID_TOPOLOGY", "severity": "ERROR", "check_id": "shake_requires_bond_angle_topology", "description": "fix shake requires bond and angle topology in the data file; only for user-confirmed rigid classical water"},
+    {"code": "WATER_SLAB_BAROSTAT", "severity": "ERROR", "check_id": "barostat_not_vacuum_axis", "description": "fix npt or nph must not barostat a non-periodic (vacuum) dimension"},
+    {"code": "WATER_ANALYSIS_OUTPUTS", "severity": "WARN", "check_id": "analysis_outputs_declared", "description": "RDF, z-density and water-count outputs should be declared for interface water production"}
+  ],
+  "capability_requirements": [],
+  "smoke_protocol": {
+    "steps": ["run 0: check water molecule count and initial geometry", "short NVT 50 to 100 steps: check water integrity, slab drift, no escape, no short contacts", "verify RDF and z-density initial values are declared"],
+    "checks": ["water molecule count conserved between read_data and final dump", "no water atom escaped into the vacuum or slab region", "minimum O-O distance above 2.0 Angstrom and O-H distance above 0.8 Angstrom", "center-of-mass drift within threshold", "RDF, z-density and water-count output files generated"],
+    "thresholds": {"min_OO_distance_A": 2.0, "min_OH_distance_A": 0.8, "max_com_drift_A_per_ps": 1.0}
+  },
+  "l4_acceptance": {
+    "required_evidence": [
+      {"key": "density_comparison_plan", "metric": "plan to compare z-density profile against AIMD or experimental reference", "blocks_without": "L4"},
+      {"key": "rdf_comparison_plan", "metric": "plan to compare O-O and O-H RDF against AIMD or experimental reference", "blocks_without": "L4"},
+      {"key": "water_integrity_evidence", "metric": "water count conserved and no fragmentation from a real LAMMPS run", "blocks_without": "L4"}
+    ],
+    "fail_closed": true
+  },
+  "unresolved_behavior": [
+    {"missing_fact": "water O and H type IDs", "blocks_level": "L0"},
+    {"missing_fact": "water model", "blocks_level": "L0"},
+    {"missing_fact": "water flexibility (rigid or flexible)", "blocks_level": "L0"},
+    {"missing_fact": "density comparison plan", "blocks_level": "L4"},
+    {"missing_fact": "RDF comparison plan", "blocks_level": "L4"},
+    {"missing_fact": "water integrity evidence", "blocks_level": "L4"}
+  ],
+  "official_refs": ["https://docs.lammps.org/fix_shake.html", "https://docs.lammps.org/compute_rdf.html", "https://docs.lammps.org/fix_ave_time.html"],
+  "post_run_handoff": {
+    "outputs": ["RDF data (fix ave/time with compute rdf)", "z-density profile (post-processing from dump)", "water count time series", "trajectory (dump custom id type x y z)"],
+    "handoff_targets": ["post-processing skill for hydrogen-bond and orientation analysis (MDAnalysis or OVITO)", "residence time analysis via post-processing"]
+  }
+}

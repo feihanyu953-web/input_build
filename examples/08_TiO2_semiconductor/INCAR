@@ -1,0 +1,51 @@
+# ==============================================================================
+# VASP INCAR | Static SCF (Single-Point Energy) — Semiconductor
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = TiO2 Rutile Semiconductor SCF # Wide-gap oxide, no magnetism
+PREC     = Normal                        # Normal precision; ENCUT manually controlled
+ENCUT    = 400                           # Plane-wave cutoff (eV); >= max ENMAX in POTCAR
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal                        # Normal Davidson/RMM-DIIS mixer
+EDIFF    = 1E-6                          # Tighter SCF convergence for static runs
+ISMEAR   = -5                            # Tetrahedron method with Blochl correction
+                                         # (dense 8x8x12 mesh suitable for tetrahedron)
+SIGMA    = 0.05                          # Smearing width (eV); small value since tetrahedron is exact
+ISTART   = 0                             # Start from scratch (no WAVECAR)
+ICHARG   = 2                             # Superposition of atomic charge densities
+NELMIN   = 6                             # Min SCF steps before assessing convergence
+NELM     = 100                           # Max SCF steps
+
+# ------------------------------------------------------------------------------
+# III. MAGNETISM
+# ------------------------------------------------------------------------------
+ISPIN    = 1                             # Non-magnetic (TiO2 is a wide-gap insulator)
+
+# ------------------------------------------------------------------------------
+# IV. ACCURACY
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.                        # Finer FFT grid for accurate PAW potentials
+LASPH    = .TRUE.                        # Non-spherical contributions in PAW
+LREAL    = .FALSE.                       # Reciprocal-space projection (accurate for static; small cell)
+
+# ------------------------------------------------------------------------------
+# V. OUTPUT
+# ------------------------------------------------------------------------------
+LCHARG   = .TRUE.                        # Write CHGCAR for restart / DOS / post-processing
+LWAVE    = .TRUE.                        # Write WAVECAR for restart / NEB / band structure
+LVTOT    = .FALSE.                       # Do not write LOCPOT by default (save disk)
+
+# ------------------------------------------------------------------------------
+# VI. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 4                             # Orbitals per core; tune for your queue / node
+# NPAR   = 4                             # Bands parallelized over NPAR groups
+# KPAR   = 1                             # K-point parallelization; >1 only if multiple kpts
+
+# END OF INCAR

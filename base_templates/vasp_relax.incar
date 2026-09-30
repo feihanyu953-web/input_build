@@ -1,0 +1,65 @@
+# ==============================================================================
+# VASP INCAR | Geometry Optimization (Conjugate Gradient)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = VASP Relaxation          # Human-readable job title
+PREC     = Normal                   # Normal precision; ENCUT is manually set below
+ENCUT    = 400                      # Plane-wave cutoff (eV); minimum for O-containing systems
+                                    # Use ENCUT = 520+ for publication-quality energies (1.3x max ENMAX)
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal                   # Normal Davidson/RMM-DIIS mixer; robust default
+EDIFF    = 1E-6                     # Tight SCF convergence for accurate forces in relax
+ISMEAR   = 0                        # Gaussian smearing; safe for molecules / slabs
+SIGMA    = 0.1                      # Smearing width (eV); small for insulators/slabs
+NELMIN   = 6                        # Min SCF steps before assessing convergence
+NELM     = 100                      # Max SCF steps; prevents runaway loops
+
+# ------------------------------------------------------------------------------
+# III. GEOMETRY OPTIMIZATION
+# ------------------------------------------------------------------------------
+IBRION   = 2                        # Conjugate-gradient algorithm for ionic relax
+ISIF     = 2                        # Relax ions only; fix cell shape / volume (slab)
+NSW      = 100                      # Max ionic steps; increase if slow convergence
+EDIFFG   = -0.03                    # Force convergence (eV/A); negative = use forces
+POTIM    = 0.3                      # Step size scaling for CG; reduce to 0.2 for complex adsorbates
+
+# ------------------------------------------------------------------------------
+# IV. ACCURACY ENHANCEMENTS
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.                   # Extra FFT grid for finer PAW representation
+LASPH    = .TRUE.                   # Include non-spherical contributions in PAW
+#LMAXMIX = 4                        # Set to 4 for d-electron DFT+U (e.g. Fe, Ni, Co)
+#LMAXMIX = 6                        # Set to 6 for f-electron DFT+U (e.g. Ce, U, rare earths)
+LREAL    = Auto                     # Real-space projection (Auto = VASP decides based on size)
+                                    # For small cells (< 20 atoms), consider LREAL = .FALSE.
+
+# ------------------------------------------------------------------------------
+# V. SYMMETRY & SMEARING
+# ------------------------------------------------------------------------------
+ISYM     = 0                        # Switch off symmetry; safe for slabs / odd shapes
+# ISMEAR = 0  with SIGMA = 0.1 is Gaussian smearing, safe default for mixed systems
+# For metals: ISMEAR = -1/0/1, SIGMA = 0.1-0.2
+# For semiconductors/insulators: ISMEAR = 0, SIGMA = 0.05 or ISMEAR = -5 with dense k-mesh
+# For molecules: ISMEAR = 0, SIGMA = 0.01-0.05
+
+# ------------------------------------------------------------------------------
+# VI. OUTPUT (written once at run end)
+# ------------------------------------------------------------------------------
+LCHARG   = .TRUE.                   # Final-geometry density seeds downstream
+                                    # static/DOS runs via ICHARG=1 (same ENCUT)
+LWAVE    = .FALSE.                  # WAVECAR is GB-scale; restarts use CONTCAR
+
+# ------------------------------------------------------------------------------
+# VII. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 4                        # Orbitals per core; tune for your queue / node
+# NPAR   = 4                        # Bands parallelized over NPAR groups
+# KPAR   = 1                        # K-point parallelization; >1 only if multiple kpts
+
+# END OF INCAR

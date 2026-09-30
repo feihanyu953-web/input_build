@@ -1,0 +1,51 @@
+# ==============================================================================
+# VASP INCAR | Al FCC Band Structure (Non-SCF)
+# ==============================================================================
+# Auto-detected: Cubic FCC, 4 atoms, metal, non-magnetic
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = Al FCC Band Structure
+PREC     = Accurate                 # Accurate for smooth bands
+ENCUT    = 400
+ISPIN    = 1                        # Non-magnetic
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal
+EDIFF    = 1E-6
+ISMEAR   = 0                        # Gaussian smearing
+SIGMA    = 0.05                     # Small smearing for sharp band edges
+ISTART   = 1                        # Read WAVECAR from prior SCF
+ICHARG   = 11                       # Non-selfconsistent with CHGCAR
+NELM     = 100
+
+# ------------------------------------------------------------------------------
+# III. BAND STRUCTURE SETTINGS
+# ------------------------------------------------------------------------------
+LORBIT   = 11                       # lm-decomposed DOS for fat bands
+ISYM     = 0                        # Disable symmetry (k-path breaks sym)
+
+# ------------------------------------------------------------------------------
+# IV. ACCURACY
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.
+LASPH    = .TRUE.
+LREAL    = .FALSE.                  # Reciprocal-space (small cell)
+
+# ------------------------------------------------------------------------------
+# V. OUTPUT
+# ------------------------------------------------------------------------------
+LCHARG   = .FALSE.                  # Do not overwrite CHGCAR
+LWAVE    = .FALSE.                  # Do not overwrite WAVECAR
+
+# ------------------------------------------------------------------------------
+# VI. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 4
+# NPAR   = 4
+# KPAR   = 1
+
+# END OF INCAR

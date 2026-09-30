@@ -1,0 +1,52 @@
+{
+  "profile_id": "constant_potential",
+  "profile_version": 1,
+  "trigger": {
+    "activation": "explicit user selection of constant_potential profile; never inferred from pair_style or task name alone",
+    "auto_infer": false,
+    "spec_conditions": ["runtime.packages contains ELECTRODE", "kspace_style is pppm/electrode or ewald/electrode", "fix electrode/* present", "user provides electrode groups, potential convention, boundary mode"]
+  },
+  "required_spec_fields": ["system.atom_style", "system.periodicity", "potential.pair_style", "runtime.packages", "protocol.stages"],
+  "renderer_extensions": [
+    {"anchor": "force_field", "description": "emit kspace_style pppm/electrode or ewald/electrode; never plain pppm", "ordering": "after pair_coeff, before electrode fix", "conflict_anchors": ["force_field"]},
+    {"anchor": "constraints", "description": "emit fix electrode/conp with user-provided potentials, symm, ffield; fix_modify energy yes", "ordering": "after kspace_style, before integrator", "conflict_anchors": []},
+    {"anchor": "output", "description": "emit electrode charge monitoring (compute reduce sum q) and charge in dump", "ordering": "after electrode fix, before run", "conflict_anchors": []}
+  ],
+  "static_rules": [
+    {"code": "CONP_KSPACE_ELECTRODE", "severity": "ERROR", "check_id": "kspace_is_electrode_variant", "description": "fix electrode/* requires kspace_style pppm/electrode or ewald/electrode; plain pppm crashes"},
+    {"code": "CONP_ELECTRODE_GROUPS_DEFINED", "severity": "ERROR", "check_id": "electrode_groups_not_placeholder", "description": "electrode groups must be explicitly defined; no >>> USER placeholder on active group lines"},
+    {"code": "CONP_GROUP_DISJOINT", "severity": "ERROR", "check_id": "electrode_groups_disjoint", "description": "bot and top electrode groups must be disjoint; electrolyte must subtract both"},
+    {"code": "CONP_BOUNDARY_FFIELD", "severity": "ERROR", "check_id": "boundary_ffield_consistency", "description": "boundary p p p requires ffield yes in fix electrode; p p f requires kspace_modify slab and no ffield"},
+    {"code": "CONP_POTENTIAL_EXPLICIT", "severity": "ERROR", "check_id": "potentials_not_placeholder", "description": "electrode potentials in fix electrode/conp must be explicit values, not >>> USER markers"},
+    {"code": "CONP_CHARGE_OUTPUT", "severity": "WARN", "check_id": "charge_monitoring_present", "description": "electrode charge monitoring should be present for CONP diagnostics"},
+    {"code": "CONP_ATOM_STYLE_FULL", "severity": "ERROR", "check_id": "atom_style_full", "description": "constant_potential requires atom_style full (charges and bonds for electrolyte)"}
+  ],
+  "capability_requirements": [
+    {"kind": "package", "value": "ELECTRODE"},
+    {"kind": "kspace_style", "value": "pppm/electrode"}
+  ],
+  "smoke_protocol": {
+    "steps": ["run 0: electrode matrix solve, check convergence and no NaN in charges", "short NVT at 0 V 50 to 100 steps: check charge equilibration and no lost atoms", "verify no electrolyte atoms assigned to electrode groups"],
+    "checks": ["return code 0 and log contains Loop time", "no ERROR, lost atoms, or NaN or Inf in log", "electrode total charge is finite and non-zero at target potential", "matrix solve converged", "atom count conserved", "no electrolyte atom type appears in electrode group definitions"],
+    "thresholds": {"charge_convergence_relative_tolerance": 0.01}
+  },
+  "l4_acceptance": {
+    "required_evidence": [
+      {"key": "zero_V_equilibration_evidence", "metric": "electrode charges stabilized at 0 V from a real LAMMPS run", "blocks_without": "L4"},
+      {"key": "target_potential_charge_stability", "metric": "electrode charges stable at target potential from a real LAMMPS run", "blocks_without": "L4"}
+    ],
+    "fail_closed": true
+  },
+  "unresolved_behavior": [
+    {"missing_fact": "electrode group definitions", "blocks_level": "L0"},
+    {"missing_fact": "potential convention (symm, ffield)", "blocks_level": "L0"},
+    {"missing_fact": "boundary mode", "blocks_level": "L0"},
+    {"missing_fact": "0 V equilibration evidence", "blocks_level": "L4"},
+    {"missing_fact": "target potential charge stability evidence", "blocks_level": "L4"}
+  ],
+  "official_refs": ["https://docs.lammps.org/fix_electrode.html", "https://docs.lammps.org/kspace_style.html"],
+  "post_run_handoff": {
+    "outputs": ["trajectory with charges (dump custom id type x y z q)", "electrode charge time series (compute reduce sum q via fix ave/time)", "thermo log (step temp pe etotal c_qbot c_qtop)"],
+    "handoff_targets": ["post-processing skill for charge fluctuation analysis", "electrochemistry workflow for capacitance and differential charge"]
+  }
+}

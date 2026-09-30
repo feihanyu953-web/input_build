@@ -1,0 +1,17 @@
+# ==============================================================================
+# Dipole Correction Modifier
+# Description: Applies a dipole correction along the slab normal (z-axis)
+# Apply when: Calculating asymmetric slabs, adsorbates on one surface, or polar surfaces
+# ==============================================================================
+
+# WARNING: IDIPOL = 3 assumes the vacuum / slab normal lies along the 3rd lattice
+# vector (c, z). If the vacuum is along a or b, change to IDIPOL = 1 or 2 —
+# a correction applied along the wrong axis is silently wrong physics (no error).
+IDIPOL = 3          # Dipole correction along the 3rd lattice vector (c / z)
+LDIPOL = .TRUE.     # Turn on the dipole correction potential
+
+# Notes:
+# - Ensure sufficient vacuum (> 15 Å) in the z direction to accommodate the correction.
+# - Equivalent top/bottom surfaces alone are not an automatic exemption: omit the
+#   correction only after confirming that the net dipole along the slab normal is negligible.
+# - IDIPOL = 1, 2, 3 correspond to x, y, z directions respectively.

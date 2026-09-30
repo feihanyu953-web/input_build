@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "code": "lammps",
+  "rules": {
+    "LAMMPS_DATA_UNREADABLE": {
+      "affected_evidence_level": "L1",
+      "rationale": "A read_data or read_restart file that cannot be read means LAMMPS cannot load the system; every physical command after it is meaningless",
+      "rule_id": "data-file-readable",
+      "severity": "WARN",
+      "severity_meaning": "WARN findings do not block L1 PASS but must be reported to the user",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() read_data/read_restart branch",
+      "trigger_condition": "the data file referenced by read_data/read_restart is missing or unreadable"
+    },
+    "LAMMPS_EAM_PAIRCOEFF_ARGS": {
+      "affected_evidence_level": "L1",
+      "rationale": "funcfl-format potentials are single-element files used with pair_style eam; setfl-format files are multi-element and must be paired with eam/alloy or eam/fs. Mixing formats makes the pair_coeff argument list wrong and LAMMPS will reject or misread the potential",
+      "rule_id": "eam-paircoeff-format",
+      "severity": "ERROR",
+      "severity_meaning": "ERROR findings cause L1 FAIL; the input cannot pass static validation",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() eam pair_coeff branch",
+      "trigger_condition": "pair_style eam/eam/alloy/eam/fs present but pair_coeff argument count is incompatible with the potential file format"
+    },
+    "LAMMPS_ELECTRODE_KSPACE": {
+      "affected_evidence_level": "L1",
+      "rationale": "Constant-potential electrode fixes (fix electrode/*) require the /electrode variants of the kspace styles (pppm/electrode or ewald/electrode); plain pppm/ewald crashes because the electrode solver needs a charge-solver hook that the plain styles do not provide",
+      "rule_id": "electrode-kspace-style",
+      "severity": "ERROR",
+      "severity_meaning": "ERROR findings cause L1 FAIL; the input cannot pass static validation",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() electrode kspace branch",
+      "trigger_condition": "fix electrode/* present without pppm/electrode or ewald/electrode as the kspace style"
+    },
+    "LAMMPS_MLFF_NO_MODEL": {
+      "affected_evidence_level": "L1",
+      "rationale": "Machine-learning force fields (mace/deepmd/pace) require a model file with the trained parameters; without a model file there are no parameters and LAMMPS cannot compute forces",
+      "rule_id": "mlff-model-present",
+      "severity": "WARN",
+      "severity_meaning": "WARN findings do not block L1 PASS but must be reported to the user",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() mlff pair_style branch",
+      "trigger_condition": "pair_style mace/deepmd/pace present without a model file or an explicit unresolved placeholder marker"
+    },
+    "LAMMPS_NEB_NO_FIX": {
+      "affected_evidence_level": "L1",
+      "rationale": "The neb command requires an accompanying fix with the neb style to define the spring and replica force; without it LAMMPS rejects the neb run",
+      "rule_id": "neb-fix-present",
+      "severity": "ERROR",
+      "severity_meaning": "ERROR findings cause L1 FAIL; the input cannot pass static validation",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() neb branch",
+      "trigger_condition": "neb command present without a fix ... neb command in the input"
+    },
+    "LAMMPS_NO_ATOM_STYLE": {
+      "affected_evidence_level": "L1",
+      "rationale": "LAMMPS requires atom_style before any system-defining command; without it the atom data layout is undefined and every pair/neighbor command is ambiguous",
+      "rule_id": "required-command-atom-style",
+      "severity": "ERROR",
+      "severity_meaning": "ERROR findings cause L1 FAIL; the input cannot pass static validation",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() required-command loop",
+      "trigger_condition": "atom_style command absent from the input script"
+    },
+    "LAMMPS_NO_BOUNDARY": {
+      "affected_evidence_level": "L1",
+      "rationale": "LAMMPS requires an explicit boundary command; the default periodicity is not guaranteed and a vacuum-axis boundary mistake silently changes the simulation geometry",
+      "rule_id": "required-command-boundary",
+      "severity": "ERROR",
+      "severity_meaning": "ERROR findings cause L1 FAIL; the input cannot pass static validation",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() required-command loop",
+      "trigger_condition": "boundary command absent from the input script"
+    },
+    "LAMMPS_NO_DUMP": {
+      "affected_evidence_level": "L1",
+      "rationale": "An MD run without any dump produces no trajectory output; the simulation becomes unanalyzable for every downstream purpose",
+      "rule_id": "md-dump-present",
+      "severity": "WARN",
+      "severity_meaning": "WARN findings do not block L1 PASS but must be reported to the user",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() output branch",
+      "trigger_condition": "MD run present without any dump command in the input"
+    },
+    "LAMMPS_NO_PAIR_STYLE": {
+      "affected_evidence_level": "L1",
+      "rationale": "LAMMPS requires pair_style before run/minimize; without it no interatomic forces can be computed and the run is meaningless",
+      "rule_id": "required-command-pair-style",
+      "severity": "ERROR",
+      "severity_meaning": "ERROR findings cause L1 FAIL; the input cannot pass static validation",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() required-command loop",
+      "trigger_condition": "pair_style command absent from the input script"
+    },
+    "LAMMPS_NO_RUN": {
+      "affected_evidence_level": "L1",
+      "rationale": "A LAMMPS input must terminate in run, minimize or neb; without a run directive nothing is executed and the input is inert",
+      "rule_id": "required-command-run",
+      "severity": "ERROR",
+      "severity_meaning": "ERROR findings cause L1 FAIL; the input cannot pass static validation",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() required-command loop",
+      "trigger_condition": "neither run nor minimize nor neb present in the input script"
+    },
+    "LAMMPS_NO_SHAKE": {
+      "affected_evidence_level": "L1",
+      "rationale": "Explicit water with flexible bonds at a timestep above 1 fs requires a rigid constraint (fix shake or fix rigid); without it hydrogen motion is under-resolved and the integration is unstable",
+      "rule_id": "rigid-water-constraint",
+      "severity": "WARN",
+      "severity_meaning": "WARN findings do not block L1 PASS but must be reported to the user",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() constraint branch",
+      "trigger_condition": "water (H) present with a high timestep but no fix shake or fix rigid constraint"
+    },
+    "LAMMPS_NO_SYSTEM": {
+      "affected_evidence_level": "L1",
+      "rationale": "LAMMPS requires a system definition (read_data, read_restart or create_box/create_atoms) before any physics; without atoms the simulation has nothing to simulate",
+      "rule_id": "required-command-system",
+      "severity": "ERROR",
+      "severity_meaning": "ERROR findings cause L1 FAIL; the input cannot pass static validation",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() required-command loop",
+      "trigger_condition": "no read_data, read_restart, create_box or create_atoms command present"
+    },
+    "LAMMPS_NO_THERMO": {
+      "affected_evidence_level": "L1",
+      "rationale": "Without an explicit thermo command LAMMPS may use a silent default output frequency; thermodynamic state cannot be verified from the log",
+      "rule_id": "md-thermo-present",
+      "severity": "WARN",
+      "severity_meaning": "WARN findings do not block L1 PASS but must be reported to the user",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() output branch",
+      "trigger_condition": "MD run present without any thermo output frequency command"
+    },
+    "LAMMPS_NO_UNITS": {
+      "affected_evidence_level": "L1",
+      "rationale": "LAMMPS requires the units command before any physical command; without units, all subsequent numeric values are dimensionally ambiguous",
+      "rule_id": "required-command-units",
+      "severity": "ERROR",
+      "severity_meaning": "ERROR findings cause L1 FAIL; the input cannot pass static validation",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() required-command loop",
+      "trigger_condition": "units command absent from the input script"
+    },
+    "LAMMPS_NO_VELOCITY": {
+      "affected_evidence_level": "L1",
+      "rationale": "An MD run without velocity initialization starts from zero velocity, which is usually not the intended thermal state; the first stage may be a spurious equilibration artifact",
+      "rule_id": "md-velocity-initialized",
+      "severity": "WARN",
+      "severity_meaning": "WARN findings do not block L1 PASS but must be reported to the user",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() velocity branch",
+      "trigger_condition": "MD run present without a velocity command initializing atom velocities"
+    },
+    "LAMMPS_NPT_NONPERIODIC_DIM": {
+      "affected_evidence_level": "L1",
+      "rationale": "A fix npt/nph barostat pressurizes a specified dimension; barostatting a non-periodic (fixed) boundary dimension makes LAMMPS error out or silently barostats the vacuum gap",
+      "rule_id": "barostat-periodicity-match",
+      "severity": "ERROR",
+      "severity_meaning": "ERROR findings cause L1 FAIL; the input cannot pass static validation",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() barostat branch",
+      "trigger_condition": "fix npt/nph pressurizes a dimension whose boundary flag is not periodic"
+    },
+    "LAMMPS_NVT_NVE_CONFLICT": {
+      "affected_evidence_level": "L1",
+      "rationale": "A group can carry at most one active time integrator; stacking nve/nvt/npt/nph/rigid on the same group without unfix separation leaves the integration state ambiguous",
+      "rule_id": "single-integrator-per-group",
+      "severity": "ERROR",
+      "severity_meaning": "ERROR findings cause L1 FAIL; the input cannot pass static validation",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() integrator branch",
+      "trigger_condition": "the same group carries more than one active time integrator without unfix separation"
+    },
+    "LAMMPS_PAIR_COEFF_MISSING": {
+      "affected_evidence_level": "L1",
+      "rationale": "pair_style without pair_coeff means no potential parameters are loaded; LAMMPS cannot compute forces",
+      "rule_id": "pair-coeff-required",
+      "severity": "ERROR",
+      "severity_meaning": "ERROR findings cause L1 FAIL; the input cannot pass static validation",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() pair_coeff branch",
+      "trigger_condition": "pair_style command present but no pair_coeff command in the input"
+    },
+    "LAMMPS_PLACEHOLDER_UNRESOLVED": {
+      "affected_evidence_level": "L1",
+      "rationale": "A >>> USER placeholder marker in an active command line means the rendered input still contains a to-be-filled value; running it would execute an incomplete command",
+      "rule_id": "placeholder-resolved",
+      "severity": "ERROR",
+      "severity_meaning": "ERROR findings cause L1 FAIL; the input cannot pass static validation",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() placeholder scan",
+      "trigger_condition": "an active (non-comment) command line contains a >>> USER placeholder marker"
+    },
+    "LAMMPS_REAXC_REMOVED": {
+      "affected_evidence_level": "L1",
+      "rationale": "pair_style reax/c no longer exists in LAMMPS >= 22Jul2025; the replacement is reaxff plus fix qeq/reaxff for charge equilibration",
+      "rule_id": "reaxff-replaces-reaxc",
+      "severity": "ERROR",
+      "severity_meaning": "ERROR findings cause L1 FAIL; the input cannot pass static validation",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() pair_style branch",
+      "trigger_condition": "pair_style reax/c present in the input"
+    },
+    "LAMMPS_TIMESTEP_HIGH": {
+      "affected_evidence_level": "L1",
+      "rationale": "A timestep above 1 fs with hydrogen atoms (or 2 fs without) is unstable for the integration scheme; the trajectory will not conserve energy",
+      "rule_id": "timestep-bounded",
+      "severity": "WARN",
+      "severity_meaning": "WARN findings do not block L1 PASS but must be reported to the user",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() timestep branch",
+      "trigger_condition": "the timestep exceeds 1 fs when hydrogen is present, or 2 fs otherwise"
+    },
+    "LAMMPS_TIMESTEP_INVALID": {
+      "affected_evidence_level": "L1",
+      "rationale": "A timestep value that is not a finite positive number is invalid; LAMMPS cannot integrate with it and the numeric parse is ambiguous",
+      "rule_id": "timestep-finite-positive",
+      "severity": "ERROR",
+      "severity_meaning": "ERROR findings cause L1 FAIL; the input cannot pass static validation",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() timestep branch",
+      "trigger_condition": "timestep value is missing, non-numeric, non-finite or not positive"
+    },
+    "LAMMPS_VELOCITY_ZERO_TEMP": {
+      "affected_evidence_level": "L1",
+      "rationale": "velocity ... create 0.0 makes LAMMPS abort at runtime ('Attempting to rescale a 0.0 temperature'); a zero-temperature creation is not executable",
+      "rule_id": "velocity-nonzero-temperature",
+      "severity": "ERROR",
+      "severity_meaning": "ERROR findings cause L1 FAIL; the input cannot pass static validation",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() velocity branch",
+      "trigger_condition": "velocity command uses create with a temperature of 0.0"
+    }
+  }
+}

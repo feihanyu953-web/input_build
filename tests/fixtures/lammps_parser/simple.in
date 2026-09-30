@@ -1,0 +1,9 @@
+units metal
+atom_style atomic
+boundary p p p
+read_data system.data
+pair_style eam/alloy
+pair_coeff * * Al.eam Al
+timestep 0.001 # 1 fs
+fix 1 all nvt temp 300.0 300.0 0.05
+run 1000

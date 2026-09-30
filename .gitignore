@@ -1,0 +1,8 @@
+# Python
+__pycache__/
+*.pyc
+
+# Smoke-run artifacts and the maintainer's real (machine-specific) environment
+# config. Users copy smoke_env.example.yaml to smoke_env.yaml.
+scripts/smoke/runs/
+scripts/smoke/smoke_env.yaml

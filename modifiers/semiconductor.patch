@@ -1,0 +1,14 @@
+# ==============================================================================
+# Semiconductor Modifier
+# Description: Enables tetrahedron method for accurate DOS/bandgap calculations
+# Apply when: System is a semiconductor or insulator (bandgap > 0.1 eV)
+# ==============================================================================
+
+ISMEAR = -5         # Tetrahedron method with Blochl correction
+                    # NOTE: Requires a gamma-centered k-mesh with sufficient density.
+                    # Not suitable for metals or sparse k-point grids.
+SIGMA  = 0.05       # Smearing width (eV); small value since tetrahedron is exact
+
+# ENCUT boost (if needed):
+# For accurate bandgap / DOS, consider ENCUT = 1.3 × ENMAX of the highest POTCAR.
+# This reduces basis-set ripple in the conduction band.

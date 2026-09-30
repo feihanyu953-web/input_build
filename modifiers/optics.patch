@@ -1,0 +1,17 @@
+# ==============================================================================
+# Optics Modifier
+# Description: Enables optical properties calculation via the random-phase approximation (RPA)
+# Apply when: User requests dielectric function, optical absorption, or refractive index
+# ==============================================================================
+
+LOPTICS = .TRUE.    # Calculate optical dielectric tensor during the NSCF step
+                    # Requires a separate NSCF run with a dense k-mesh for accuracy.
+
+# CSHIFT (for broadening):
+CSHIFT = 0.1        # Complex shift for broadening (eV); controls Lorentzian width.
+                    # Smaller values give sharper features but require denser k-sampling.
+
+# NEDOS increase note:
+# For smooth optical spectra, increase NEDOS significantly (e.g., 5000–10000).
+# Example:
+#   NEDOS = 5000

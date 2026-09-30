@@ -1,0 +1,11 @@
+# synthetic fixture mimicking official ELECTRODE package example layout
+units           real
+atom_style      charge
+boundary        p p f
+read_data       electrode.data
+pair_style      lj/cut 12.0
+pair_coeff      * * 1.0 1.0
+kspace_style    pppm/electrode 1.0e-5
+fix             conp all electrode/conp -1.0 1.805 anneal 100
+thermo          100
+run             1000

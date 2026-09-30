@@ -1,0 +1,114 @@
+# ==============================================================================
+# CP2K Input | Al FCC Bulk Static SCF
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+&GLOBAL
+  PROJECT     C1_CP2K_Al_SCF          # Job name (prefix for output files)
+  RUN_TYPE    ENERGY_FORCE            # Single-point energy and forces
+  PRINT_LEVEL LOW
+&END GLOBAL
+
+# ------------------------------------------------------------------------------
+# II. FORCE EVALUATION
+# ------------------------------------------------------------------------------
+&FORCE_EVAL
+  METHOD Quickstep
+
+  &DFT
+    BASIS_SET_FILE_NAME  ./BASIS_MOLOPT
+    POTENTIAL_FILE_NAME  ./GTH_POTENTIALS
+
+    &QS
+      EPS_DEFAULT 1.0E-12
+      METHOD      GPW
+    &END QS
+
+    &MGRID
+      CUTOFF      400                 # Ry; bulk metal standard
+      REL_CUTOFF  50
+      NGRIDS      4
+    &END MGRID
+
+    &XC
+      &XC_FUNCTIONAL PBE
+      &END XC_FUNCTIONAL
+    &END XC
+
+    &SCF
+      SCF_GUESS   ATOMIC
+      EPS_SCF     1.0E-7
+      MAX_SCF     300
+
+      &DIAGONALIZATION
+        ALGORITHM STANDARD
+      &END DIAGONALIZATION
+
+      &MIXING
+        METHOD   BROYDEN_MIXING
+        ALPHA    0.4
+        NBROYDEN 8
+      &END MIXING
+
+      # Fermi-Dirac smearing for metallic Al
+      &SMEAR
+        METHOD FERMI_DIRAC
+        ELECTRONIC_TEMPERATURE [K] 300
+      &END SMEAR
+      ADDED_MOS 10
+    &END SCF
+
+    &POISSON
+      PERIODIC XYZ
+    &END POISSON
+
+    # -------------------------------------------------------------------------
+    # K-POINT SAMPLING (bulk metal)
+    # -------------------------------------------------------------------------
+    &KPOINTS
+      SCHEME MONKHORST-PACK 9 9 9
+      SYMMETRY OFF
+      WAVEFUNCTIONS COMPLEX
+      FULL_GRID .TRUE.
+    &END KPOINTS
+
+    &PRINT
+      &E_DENSITY_CUBE OFF
+      &END E_DENSITY_CUBE
+    &END PRINT
+
+  &END DFT
+
+  &SUBSYS
+    &CELL
+      ABC     4.0495 4.0495 4.0495
+      ALPHA_BETA_GAMMA 90.0 90.0 90.0
+      PERIODIC XYZ
+    &END CELL
+
+    &KIND Al
+      BASIS_SET DZVP-MOLOPT-SR-GTH
+      POTENTIAL GTH-PBE
+    &END KIND
+
+    &TOPOLOGY
+      COORD_FILE_NAME    ./Al_bulk.xyz
+      COORD_FILE_FORMAT  XYZ
+    &END TOPOLOGY
+  &END SUBSYS
+
+  # --- Output control ---
+  # &FORCES belongs to FORCE_EVAL/PRINT — under DFT/PRINT CP2K aborts with
+  # "unknown subsection FORCES of section PRINT" (2026.1 runtime-verified).
+  &PRINT
+    &FORCES ON
+    &END FORCES
+  &END PRINT
+
+&END FORCE_EVAL
+
+# ==============================================================================
+# END OF INPUT
+# ==============================================================================

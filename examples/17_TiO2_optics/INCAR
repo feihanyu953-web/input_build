@@ -1,0 +1,76 @@
+# ==============================================================================
+# VASP INCAR | TiO2 Anatase Bulk Optical Properties
+# Source: VASP Wiki LOPTICS (https://www.vasp.at/wiki/LOPTICS),
+#         examples/13_Si_optics/INCAR
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = TiO2_anatase_optics          # TiO2 anatase bulk optical properties
+PREC     = Accurate                     # Accurate for smooth eigenvalues
+ENCUT    = 520                          # 1.3x max ENMAX for O/Ti POTCAR
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal
+EDIFF    = 1E-6
+ISMEAR   = 0                            # Gaussian smearing for semiconductor
+SIGMA    = 0.05
+ISTART   = 1                            # Read WAVECAR from prior SCF
+ICHARG   = 11                           # Non-SCF using read-in CHGCAR
+NELM     = 100
+
+# ------------------------------------------------------------------------------
+# III. OPTICS SETTINGS
+# ------------------------------------------------------------------------------
+LOPTICS  = .TRUE.                       # Frequency-dependent dielectric matrix
+CSHIFT   = 0.1                          # Lorentzian broadening (eV)
+NEDOS    = 2000                         # Energy grid for smooth spectra
+
+# Empty bands: LOPTICS needs many unoccupied states, otherwise high-energy
+# transitions are truncated (vasp.at/wiki/LOPTICS). Use ~2-3x the default NBANDS
+# of the prior SCF run (check its OUTCAR "NBANDS="; ~96 for this TiO2 cell).
+NBANDS   = 288                          # ~3x SCF default; converge vs spectra
+
+# ------------------------------------------------------------------------------
+# IV. DFT+U SETTINGS (optional for TiO2; uncomment if using Ti 3d DFT+U)
+# ------------------------------------------------------------------------------
+# LDAU     = .TRUE.
+# LDAUTYPE = 2
+# LDAUL    = 2 -1                       # Ti = d, O = none
+# LDAUU    = 4.0 0.0                    # Literature U(Ti 3d) ~ 3-5 eV
+# LDAUJ    = 0.0 0.0
+# LMAXMIX  = 4                          # Required for d-electron DFT+U
+
+# ------------------------------------------------------------------------------
+# V. ACCURACY
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.
+LASPH    = .TRUE.
+LREAL    = .FALSE.
+
+# ------------------------------------------------------------------------------
+# VI. OUTPUT
+# ------------------------------------------------------------------------------
+LCHARG   = .FALSE.
+LWAVE    = .FALSE.
+
+# ------------------------------------------------------------------------------
+# VII. PARALLELIZATION
+# ------------------------------------------------------------------------------
+# NCORE  = 4
+# NPAR   = 4
+# KPAR   = 1
+
+# END OF INCAR
+
+# ==============================================================================
+# POST-PROCESSING
+# ==============================================================================
+# Optical dielectric tensor is in OUTCAR (search for "FREQUENCIES").
+# Use VASPKIT option 71/712 or pymatgen for extraction and plotting.
+#
+# Convergence: increase k-point density and NBANDS until spectra are stable.
+# ==============================================================================

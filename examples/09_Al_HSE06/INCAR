@@ -1,0 +1,87 @@
+# ==============================================================================
+# VASP INCAR | HSE06 Hybrid Functional (Static SCF)
+# ==============================================================================
+# WARNING: HSE06 is ~10-100x more expensive than PBE. Use sparingly.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = Al FCC HSE06                 # Aluminum bulk hybrid functional
+PREC     = Accurate                     # Accurate required for HF exact exchange
+ENCUT    = 400                          # Plane-wave cutoff (eV); >= max ENMAX in POTCAR
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal                       # Damped or Normal; avoid Very_Fast for hybrids
+EDIFF    = 1E-6                         # Tight SCF convergence
+ISMEAR   = 0                            # Gaussian smearing (tetrahedron incompatible with HF)
+SIGMA    = 0.05                         # Small smearing for sharp gap edges
+NELMIN   = 6                            # Min SCF steps; hybrids converge slowly
+NELM     = 100                          # Max SCF steps; increase if convergence stalls
+
+# ------------------------------------------------------------------------------
+# III. HYBRID FUNCTIONAL SETTINGS
+# ------------------------------------------------------------------------------
+LHFCALC  = .TRUE.                       # Enable Hartree-Fock exact exchange
+HFSCREEN = 0.2                          # 0.2 = HSE06; 0.0 = PBE0; inf = screened HF
+PRECFOCK = Fast                         # Fast = reduced FFT grid for Fock; Normal/Accurate = full
+                                        # Use Normal for publication-quality, Fast for testing
+# AEXX     = 0.25                       # Fraction of exact exchange (default 0.25 = HSE06)
+# AGGAX    = 0.75                       # GGA exchange fraction (default 0.75)
+# AGGAC    = 1.00                       # GGA correlation fraction (default 1.00)
+
+# Time-saving for large systems (recommended for >50 atoms):
+# NKRED    = 2                          # Reduce Fock k-grid by factor 2 in each direction
+#                                       # Significant speedup; test convergence vs NKRED=1
+
+# ------------------------------------------------------------------------------
+# IV. GEOMETRY (static SCF only; comment out for relaxation)
+# ------------------------------------------------------------------------------
+# IBRION   = 2                          # Conjugate-gradient relax
+# ISIF     = 2                          # Relax ions only; fix cell
+# NSW      = 50                         # Max ionic steps; hybrid relax is expensive
+# EDIFFG   = -0.03                      # Force convergence (eV/A)
+
+# ------------------------------------------------------------------------------
+# V. ACCURACY
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.                       # Finer FFT grid for accurate potential
+LASPH    = .TRUE.                       # Non-spherical contributions in PAW
+LREAL    = .FALSE.                      # Reciprocal-space projection (small cell, accurate)
+
+# ------------------------------------------------------------------------------
+# VI. PARALLELIZATION (CRITICAL for HSE performance)
+# ------------------------------------------------------------------------------
+# For hybrids, NPAR must divide NBANDS evenly. Common choices:
+# NPAR = 1  (safest, but slow for many cores)
+# NPAR = 2, 4 (test for your system)
+# NCORE = 1 (required when NPAR > 1 for some VASP versions)
+# KPAR = 1  (k-point parallelization limited for hybrids)
+#
+# NCORE  = 1                            # Often required for NPAR > 1
+# NPAR   = 4                            # Tune: must divide NBANDS
+# KPAR   = 1                            # Usually 1 for hybrid band structure
+
+# ------------------------------------------------------------------------------
+# VII. OUTPUT
+# ------------------------------------------------------------------------------
+LCHARG   = .TRUE.                       # Save CHGCAR for restart / DOS post-processing
+LWAVE    = .TRUE.                       # Save WAVECAR (expensive but needed for restart)
+
+# END OF INCAR
+
+# ==============================================================================
+# PERFORMANCE NOTES
+# ==============================================================================
+# - HSE06 scales as O(N^4) with system size; consider PBE pre-convergence first
+# - Hybrid band structures CANNOT use "PBE SCF -> HSE06 non-SCF (ICHARG=11) on k-path":
+#   the hybrid Hamiltonian depends on the occupied orbitals / Fock operator on the
+#   regular k-mesh, not only on the charge density. Use instead (vasp.at/wiki/
+#   Band-structure_calculation_using_hybrid_functionals):
+#     (a) regular k-mesh + zero-weight path k-points in one hybrid SCF, or
+#     (b) the KPOINTS_OPT restart workflow (VASP >= 6).
+# - PRECFOCK=Fast saves ~30% time with minor accuracy loss; test vs Normal
+# - NKRED=2 can save 4-8x time; always verify bandgap converges vs NKRED=1
+# ==============================================================================

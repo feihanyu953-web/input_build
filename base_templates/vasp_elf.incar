@@ -1,0 +1,84 @@
+# ==============================================================================
+# VASP INCAR | Electron Localization Function (ELF)
+# Source: VASP Wiki LELF (https://www.vasp.at/wiki/LELF)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = VASP ELF                     # Human-readable job title
+
+# !!! PREC CHAIN CONSISTENCY (ICHARG=1 re-reads the SCF CHGCAR) !!!
+# ICHARG=1 re-reads the CHGCAR written by the preceding SCF run; the stored
+# FFT grid must match this run's grid, and PREC controls the grid. A PREC
+# mismatch aborts with "charge density could not be read" (runtime-verified
+# on VASP 6.5.1: PREC=Accurate SCF -> PREC=Normal follow-up refused to run).
+# Keep PREC identical to the SCF run that produced the CHGCAR. This template
+# is Accurate while vasp_scf.incar is Normal — rerun the SCF with
+# PREC=Accurate, or set this file to Normal to match the existing CHGCAR.
+PREC     = Accurate                     # Accurate for smooth ELF
+ENCUT    = 400                          # Plane-wave cutoff (eV); >= max ENMAX
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal                       # Normal Davidson/RMM-DIIS mixer
+EDIFF    = 1E-6                         # Tight SCF convergence
+ISMEAR   = 0                            # Gaussian smearing
+SIGMA    = 0.05                         # Small smearing for sharp density
+ISTART   = 1                            # Read WAVECAR from prior SCF
+ICHARG   = 1                            # Read CHGCAR, keep density fixed (fast)
+# NOTE: If no CHGCAR available, use ICHARG=2 and run full SCF
+NELM     = 60                           # Max SCF steps
+NELMIN   = 4                            # Min SCF steps
+
+# ------------------------------------------------------------------------------
+# III. ELF SETTINGS
+# ------------------------------------------------------------------------------
+LELF     = .TRUE.                       # Write ELFCAR (electron localization fn)
+                                        # Source: https://www.vasp.at/wiki/LELF
+
+# MANDATORY for LELF: NPAR must be 1.
+NPAR     = 1                            # Required when LELF=.TRUE.; source: https://www.vasp.at/wiki/LELF
+
+# Optional: boost FFT grid for smoother ELF isosurfaces.
+# Check default NGX/NGY/NGZ in OUTCAR, then set ~2x:
+# NGXF   = 224                          # 2x default FFT grid in x
+# NGYF   = 224                          # 2x default FFT grid in y
+# NGZF   = 224                          # 2x default FFT grid in z
+
+# ------------------------------------------------------------------------------
+# IV. ACCURACY
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.                       # Finer FFT grid for accurate potential
+LASPH    = .TRUE.                       # Non-spherical contributions in PAW
+LREAL    = .FALSE.                      # Reciprocal-space projection (accurate)
+
+# ------------------------------------------------------------------------------
+# V. OUTPUT
+# ------------------------------------------------------------------------------
+LCHARG   = .TRUE.                       # Write CHGCAR for restart / Bader
+LWAVE    = .FALSE.                      # ELF does not need WAVECAR
+
+# ------------------------------------------------------------------------------
+# VI. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 1                            # NPAR=1 forces NCORE=1 effectively
+
+# END OF INCAR
+
+# ==============================================================================
+# POST-PROCESSING INSTRUCTIONS
+# ==============================================================================
+# ELF values range from 0 (delocalized, e.g. vacuum) to 1 (fully localized).
+#
+# Visualization:
+#   $ vmd ELFCAR
+#   $ ovito ELFCAR
+#   $ vesta ELFCAR
+#
+# Common isosurfaces:
+#   - ELF = 0.85: covalent bonds / lone pairs
+#   - ELF = 0.5 : electron-gas-like region
+#   - ELF = 0.0 : vacuum / strongly delocalized
+# ==============================================================================

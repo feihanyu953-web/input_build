@@ -1,0 +1,80 @@
+# ==============================================================================
+# VASP INCAR | Geometry Optimization + DFT+U (Conjugate Gradient)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = VASP Relax + DFT+U       # Human-readable job title
+PREC     = Normal                   # Normal precision; ENCUT is manually set below
+ENCUT    = 400                      # Plane-wave cutoff (eV); >= max ENMAX in POTCAR
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal                   # Normal Davidson/RMM-DIIS mixer; robust default
+EDIFF    = 1E-6                     # Tight SCF convergence for accurate forces in relax
+ISMEAR   = 0                        # Gaussian smearing; safe for oxides / correlated systems
+SIGMA    = 0.1                      # Smearing width (eV)
+NELMIN   = 6                        # Min SCF steps before assessing convergence
+NELM     = 100                      # Max SCF steps; DFT+U may need more iterations
+
+# ------------------------------------------------------------------------------
+# III. GEOMETRY OPTIMIZATION
+# ------------------------------------------------------------------------------
+IBRION   = 2                        # Conjugate-gradient algorithm for ionic relax
+ISIF     = 2                        # Relax ions only; fix cell shape / volume (slab)
+NSW      = 100                      # Max ionic steps; increase if slow convergence
+EDIFFG   = -0.03                    # Force convergence (eV/A); negative = use forces
+POTIM    = 0.5                      # Step size scaling for CG; default is usually OK
+
+# ------------------------------------------------------------------------------
+# IV. ACCURACY ENHANCEMENTS
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.                   # Extra FFT grid for finer PAW representation
+LASPH    = .TRUE.                   # Include non-spherical contributions in PAW
+
+# ------------------------------------------------------------------------------
+# V. SYMMETRY
+# ------------------------------------------------------------------------------
+ISYM     = 0                        # Switch off symmetry; safe for slabs / odd shapes
+
+# ------------------------------------------------------------------------------
+# VI. DFT+U SETTINGS (REQUIRED: replace with element-specific values)
+# ------------------------------------------------------------------------------
+LDAU     = .TRUE.                   # Switch on DFT+U
+LDAUTYPE = 2                        # Dudarev (simplified rotationally invariant)
+
+# LMAXMIX is NOT optional for DFT+U (VASP wiki: LMAXMIX). The one-center PAW
+# charge densities must be passed through the mixer up to the correlated l.
+# Omitting it (default 2) gives incorrect U correction and poor convergence.
+LMAXMIX  = 4                        # REQUIRED: 4 for d-electron U (Fe, Ni, Co, Mn...)
+# LMAXMIX = 6                       # REQUIRED instead for f-electron U (Ce, U, rare earths)
+
+# NOTE: values below are a CONCRETE DEFAULT (Fe-oxide style: d-U on species 1,
+# none on species 2). Always replace with element-specific L, U, J in POSCAR
+# element order; array length must equal the number of POTCAR species (NTYP).
+# L: 2 = d orbital, 3 = f orbital, -1 = none
+# Example for CeO2 (Ce 4f, O none): LDAUL = 3 -1 ; LDAUU = 5.0 0.0
+# An all-"-1"/all-zero-U setup applies NO U correction and is rejected by the
+# validator unless explicitly declared as a control calculation.
+LDAUL    = 2 -1                     # per-species L: d-U on species 1, none on 2
+LDAUU    = 4.3 0.0                  # per-species Hubbard U (eV); Fe 3d ~ 4.0-4.3
+LDAUJ    = 0.0 0.0                  # per-species exchange J (eV); Dudarev: keep 0
+
+# ------------------------------------------------------------------------------
+# VII. OUTPUT (written once at run end)
+# ------------------------------------------------------------------------------
+LCHARG   = .TRUE.                   # DFT+U density carries one-center occupancies
+                                    # (LMAXMIX >= 4 keeps them in the CHGCAR) so a
+                                    # follow-up can restart via ICHARG=1/11
+LWAVE    = .FALSE.                  # WAVECAR is GB-scale; restarts use CONTCAR
+
+# ------------------------------------------------------------------------------
+# VIII. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 4                        # Orbitals per core; tune for your queue / node
+# NPAR   = 4                        # Bands parallelized over NPAR groups
+# KPAR   = 1                        # K-point parallelization; >1 only if multiple kpts
+
+# END OF INCAR

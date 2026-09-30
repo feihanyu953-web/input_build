@@ -1,0 +1,10 @@
+# synthetic fixture mimicking official LAMMPS melt example layout
+units           lj
+atom_style      atomic
+boundary        p p p
+read_data       melt.data
+pair_style      lj/cut 2.5
+pair_coeff      * * 1.0 1.0
+fix             1 all nvt temp 1.0 1.0 0.1
+thermo          50
+run             2000

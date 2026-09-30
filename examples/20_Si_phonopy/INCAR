@@ -1,0 +1,28 @@
+# ==============================================================================
+# 20 · Si phonon via phonopy — high-precision single point on displaced supercells
+# ==============================================================================
+SYSTEM   = Si phonopy single-point
+PREC     = Accurate
+ENCUT    = 400                        # >= 1.3 x ENMAX(Si) recommended
+
+# --- Electronic SCF ---
+ALGO     = Normal
+EDIFF    = 1E-8                       # forces enter the dynamical matrix: keep tight
+ISMEAR   = 0
+SIGMA    = 0.05
+NELM     = 100
+NELMIN   = 6
+
+# --- Single point (no relaxation) ---
+IBRION   = -1
+NSW      = 0
+# DFPT alternative: IBRION = 8 (no phonopy needed)
+
+# --- Accuracy ---
+ADDGRID  = .TRUE.
+LASPH    = .TRUE.
+LREAL    = .FALSE.
+
+# --- Output ---
+LWAVE    = .FALSE.
+LCHARG   = .FALSE.

@@ -1,0 +1,92 @@
+# ==============================================================================
+# VASP INCAR | Work Function Extraction (Static SCF + Hartree Potential)
+# Source: VASP Wiki LVHAR (https://www.vasp.at/wiki/LVHAR), LVTOT
+#         (https://www.vasp.at/wiki/LVTOT)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = VASP Work Function           # Human-readable job title
+
+# !!! PREC CHAIN CONSISTENCY (ICHARG=1 re-reads the SCF CHGCAR) !!!
+# ICHARG=1 re-reads the CHGCAR written by the preceding SCF run; the stored
+# FFT grid must match this run's grid, and PREC controls the grid. A PREC
+# mismatch aborts with "charge density could not be read" (runtime-verified
+# on VASP 6.5.1: PREC=Accurate SCF -> PREC=Normal follow-up refused to run).
+# Keep PREC identical to the SCF run that produced the CHGCAR. This template
+# is Accurate while vasp_scf.incar is Normal — rerun the SCF with
+# PREC=Accurate, or set this file to Normal to match the existing CHGCAR.
+PREC     = Accurate                     # Accurate for smooth potential
+ENCUT    = 400                          # Plane-wave cutoff (eV); >= max ENMAX
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal                       # Normal Davidson/RMM-DIIS mixer
+EDIFF    = 1E-6                         # Tight SCF convergence
+ISMEAR   = 0                            # Gaussian smearing
+SIGMA    = 0.05                         # Small smearing for sharp potential
+ISTART   = 0                            # Orbitals from scratch: vasp_scf no longer
+                                      # writes WAVECAR by default (flip its LWAVE
+                                      # and restore ISTART=1 for the orbital handoff)
+ICHARG   = 1                            # Read CHGCAR as the SCF initial guess
+                                      # (self-consistent; ICHARG=11 would fix it)
+# NOTE: If no CHGCAR available, use ICHARG=2 and run full SCF
+NELM     = 60                           # Max SCF steps
+NELMIN   = 4                            # Min SCF steps
+
+# ------------------------------------------------------------------------------
+# III. WORK FUNCTION SETTINGS
+# ------------------------------------------------------------------------------
+# VASP 6+ recommended: LVHAR writes ionic + Hartree potential to LOCPOT.
+# VASP 5.x fallback: LVTOT writes total local potential to LOCPOT.
+# Setting LVHAR=.TRUE. automatically sets LVTOT=.FALSE.
+LVHAR    = .TRUE.                       # Output Hartree potential to LOCPOT
+#LVTOT   = .TRUE.                       # Old VASP: output total local potential
+
+# Dipole correction for asymmetric slabs / polar surfaces:
+# Ensures vacuum potential plateau is flat in the middle of the slab.
+IDIPOL   = 3                            # Correct along z (surface normal)
+LDIPOL   = .TRUE.                       # Activate dipole correction
+
+# ------------------------------------------------------------------------------
+# IV. ACCURACY
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.                       # Finer FFT grid for accurate potential
+LASPH    = .TRUE.                       # Non-spherical contributions in PAW
+LREAL    = .FALSE.                      # Reciprocal-space projection (accurate)
+
+# ------------------------------------------------------------------------------
+# V. OUTPUT
+# ------------------------------------------------------------------------------
+LCHARG   = .TRUE.                       # Write CHGCAR (restart / post-process)
+LWAVE    = .FALSE.                      # Static run; no WAVECAR consumer by default
+
+# ------------------------------------------------------------------------------
+# VI. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 4                            # Orbitals per core; tune for your queue
+# NPAR   = 4                            # Bands parallelized over NPAR groups
+# KPAR   = 1                            # k-point parallelization
+
+# END OF INCAR
+
+# ==============================================================================
+# POST-PROCESSING INSTRUCTIONS
+# ==============================================================================
+# Work function: Phi = E_vacuum - E_Fermi
+#
+# 1. Extract the planar-averaged electrostatic potential along z from LOCPOT:
+#    $ python - <<'PY'
+#    import numpy as np
+#    from ase.io import read
+#    # ... read LOCPOT, average in xy-plane, locate vacuum plateau ...
+#    PY
+#
+# 2. Or use VASPKIT: option 426 (Work function / Average potential)
+#
+# 3. Get E_Fermi from OUTCAR (or DOSCAR).
+#
+# 4. Report Phi = V_vacuum - E_Fermi.
+# ==============================================================================

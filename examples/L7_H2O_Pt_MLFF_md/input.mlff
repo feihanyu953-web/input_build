@@ -1,0 +1,40 @@
+# ==============================================================================
+# L7 · H2O/Pt interface MLFF MD (MACE, NVT production)
+# ==============================================================================
+
+units           metal
+atom_style      atomic
+boundary        p p p
+newton          on
+
+# Type order in system.data: 1=H 2=O 3=Pt — MUST match pair_coeff element order!
+read_data       system.data
+
+# --- Machine-learning force field ---
+# >>> USER: replace mace.model with your actual model path <<<
+pair_style      mace
+pair_coeff      * * mace.model H O Pt
+
+min_style       cg
+minimize        1.0e-4 1.0e-6 1000 10000
+
+velocity        all create 300.0 12345 dist gaussian
+
+neighbor        2.0 bin
+neigh_modify    every 1 delay 0 check yes
+timestep        0.0005              # 0.5 fs (H-containing)
+
+fix             equil all nvt temp 300.0 300.0 0.05
+thermo          100
+thermo_style    custom step temp press pe ke etotal vol density
+run             20000
+unfix           equil
+
+fix             prod all nvt temp 300.0 300.0 0.05
+
+dump            1 all custom 100 traj.lammpstrj id type x y z fx fy fz
+dump_modify     1 sort id
+
+restart         10000 restart1.restart restart2.restart
+
+run             200000              # 100 ps production

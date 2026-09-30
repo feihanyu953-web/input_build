@@ -1,0 +1,33 @@
+# ==============================================================================
+# L9 · LAMMPS NEB (fix neb + neb command) — replica run required
+# ==============================================================================
+# Launch (N replicas x M cores per replica):
+#   mpirun -np N*M lmp -partition NxM -in in.neb
+# e.g. 8 replicas, 1 core each:  mpirun -np 8 lmp -partition 8x1 -in in.neb
+# ==============================================================================
+
+units           metal
+atom_style      atomic
+boundary        p p p
+atom_modify     map array           # REQUIRED by fix neb
+
+read_data       initial.data        # NOTE: 替换为你的初态 data 文件
+
+# --- Force field ---
+# >>> USER: insert pair_style/pair_coeff here <<<
+# pair_style      eam                 # funcfl 单元素格式（如 Al_u3.eam）用 eam；
+# pair_coeff      * * Al_u3.eam       # funcfl 仅 3 参数（无元素符号）；setfl
+                                      #（*.eam.alloy）才用 eam/alloy + 元素符号
+
+neighbor        2.0 bin
+neigh_modify    every 1 delay 0 check yes
+timestep        0.005               # NEB timestep ~10x a regular MD step is OK
+
+min_style       quickmin            # or fire — cg/sd/hftn are INVALID with NEB
+fix             1 all neb 1.0       # Kspring = 1.0 eV/A^2 (units metal)
+
+thermo          100
+
+# neb etol ftol N1 N2 Nevery <file-style> [verbosity]
+# final coords.final : final-state coords file (alternatives: each <file>, none)
+neb             1.0e-3 1.0e-5 1000 1000 100 final coords.final

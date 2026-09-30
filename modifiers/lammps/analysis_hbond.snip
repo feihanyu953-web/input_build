@@ -1,0 +1,28 @@
+# ==============================================================================
+# Analysis Snippet: Hydrogen-Bond Statistics (honest route — no native compute)
+# Apply when: water / electrolyte MD where H-bond counts, lifetimes, or networks
+#             are required
+# ==============================================================================
+# IMPORTANT: LAMMPS has NO native hydrogen-bond compute. Do not invent one.
+# Standard route: dump trajectories (+ RDFs as a sanity check), then post-process
+# with MDAnalysis or OVITO using a geometric criterion, e.g.
+#   O...O distance < 3.5 A   AND   angle(O-O...H) < 30 deg
+# (please adjust the criterion to your water model / literature convention).
+
+# --- In LAMMPS: emit the RDFs used to validate the H-bond cutoffs ---
+# >>> USER: type IDs 1=O, 2=H below; adjust to your data file <<<
+compute         rdf_oo all rdf 200 1 1
+compute         rdf_oh all rdf 200 1 2
+fix             frdf all ave/time 100 10 1000 c_rdf_oo[*] c_rdf_oh[*] file rdf_hbond.dat mode vector
+
+# --- And make sure a full trajectory is dumped for the post-processing step ---
+# dump          hb all custom 500 traj_hbond.lammpstrj id type x y z
+# dump_modify   hb sort id
+
+# Post-processing sketch (Python / MDAnalysis):
+#   import MDAnalysis
+#   from MDAnalysis.analysis.hydrogen_bonds import HydrogenBondAnalysis
+#   u = MDAnalysis.Universe("system.data", "traj_hbond.lammpstrj", format="LAMMPSDUMP")
+#   hb = HydrogenBondAnalysis(u, donors_sel="type O", hydrogens_sel="type H",
+#                             acceptors_sel="type O", d_a_cutoff=3.5, angle_cutoff=30)
+#   hb.run(); print(hb.results.hbonds)   # counts / lifetimes / per-frame stats

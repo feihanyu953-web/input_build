@@ -1,0 +1,71 @@
+{
+  "code": "lammps",
+  "input_file": "in.lammps",
+  "modifiers": [
+    "dump_full"
+  ],
+  "potential": {
+    "artifacts": [],
+    "family": "mace",
+    "pair_coeff": "* * mace.model C H O N",
+    "pair_style": "mace",
+    "type_elements": [
+      "C",
+      "H",
+      "O",
+      "N"
+    ]
+  },
+  "profiles": [
+    "mlff/mace"
+  ],
+  "protocol": {
+    "stages": [
+      {
+        "maxiter": 1000,
+        "name": "minimize"
+      },
+      {
+        "duration_ps": 10,
+        "ensemble": "nvt",
+        "name": "equilibrate",
+        "temperature_K": 300
+      },
+      {
+        "duration_ps": 100,
+        "ensemble": "nvt",
+        "name": "production",
+        "temperature_K": 300
+      }
+    ],
+    "timestep_fs": 0.5
+  },
+  "provenance": {
+    "potential": "user-provided",
+    "protocol": "user-confirmed",
+    "structure": "user-provided",
+    "type_map": "user-confirmed"
+  },
+  "schema_version": 1,
+  "system": {
+    "atom_count": 27,
+    "atom_style": "atomic",
+    "atom_types": 4,
+    "data_file": "system.data",
+    "data_sha256": "sha256:aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000",
+    "has_h": true,
+    "periodicity": [
+      "p",
+      "p",
+      "p"
+    ],
+    "type_map": {
+      "1": "C",
+      "2": "H",
+      "3": "O",
+      "4": "N"
+    }
+  },
+  "task": "mlff-md",
+  "unresolved": []
+}

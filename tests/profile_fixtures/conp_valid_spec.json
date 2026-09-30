@@ -1,0 +1,76 @@
+{
+  "code": "lammps",
+  "input_file": "in.lammps",
+  "modifiers": [],
+  "potential": {
+    "artifacts": [
+      {
+        "path": "params.dat",
+        "sha256": "sha256:dddd3333dddd3333dddd3333dddd3333dddd3333dddd3333dddd3333dddd3333"
+      }
+    ],
+    "family": "lj_coul",
+    "pair_coeff": "* * params.dat O H C N Na Au",
+    "pair_style": "lj/cut/coul/long 12.0",
+    "type_elements": [
+      "O",
+      "H",
+      "C",
+      "N",
+      "Na",
+      "Au",
+      "Au"
+    ]
+  },
+  "profiles": [
+    "constant_potential"
+  ],
+  "protocol": {
+    "stages": [
+      {
+        "duration_ps": 50,
+        "ensemble": "nvt",
+        "name": "equilibrate_0V",
+        "temperature_K": 300
+      },
+      {
+        "duration_ps": 100,
+        "ensemble": "nvt",
+        "name": "production",
+        "temperature_K": 300
+      }
+    ],
+    "timestep_fs": 1.0
+  },
+  "provenance": {
+    "potential": "user-provided",
+    "protocol": "user-confirmed",
+    "structure": "user-provided",
+    "type_map": "user-confirmed"
+  },
+  "schema_version": 1,
+  "system": {
+    "atom_count": 500,
+    "atom_style": "full",
+    "atom_types": 7,
+    "data_file": "system.data",
+    "data_sha256": "sha256:cccc2222cccc2222cccc2222cccc2222cccc2222cccc2222cccc2222cccc2222",
+    "has_h": true,
+    "periodicity": [
+      "p",
+      "p",
+      "p"
+    ],
+    "type_map": {
+      "1": "O",
+      "2": "H",
+      "3": "C",
+      "4": "N",
+      "5": "Na",
+      "6": "Au",
+      "7": "Au"
+    }
+  },
+  "task": "conp-md",
+  "unresolved": []
+}

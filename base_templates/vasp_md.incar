@@ -1,0 +1,97 @@
+# ==============================================================================
+# VASP INCAR | AIMD NVT (Langevin Thermostat)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = VASP AIMD NVT Langevin     # Human-readable job title
+PREC     = Normal                     # Normal precision; ENCUT manually controlled
+ENCUT    = 400                        # Plane-wave cutoff (eV); >= max ENMAX in POTCAR
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Fast                       # RMM-DIIS; fastest converging default for AIMD
+                                      # (ALGO=Normal can stall on metal/water interfaces)
+EDIFF    = 1E-4                       # AIMD: SCF tighter than 1E-4 is wasted effort
+                                      # (thermal noise >> electronic error at this level)
+ISMEAR   = 0                          # Gaussian smearing
+SIGMA    = 0.1                        # Smearing width (eV)
+NELM     = 200                        # Max SCF steps per MD step; conservative mixing
+                                      # needs a high ceiling on early steps
+
+# --- Charge-density mixing for metal/liquid interfaces -------------------------
+# IF the system is a metal slab + explicit solvent (water/ions), ADD these three
+# lines — default AMIX=0.4 charge-sloshes on such interfaces and diverges:
+#   AMIX = 0.02
+#   BMIX = 1.0
+#   AMIN = 0.01
+# This exact trio is the locally verified combination for interface AIMD.
+# Do NOT substitute BMIX=0.01 (a different prescription from static two-step SCF).
+# ------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
+# III. MOLECULAR DYNAMICS
+# ------------------------------------------------------------------------------
+IBRION   = 0                          # MD mode (no geometry optimization)
+                                      # NOTE: do NOT set ISIF for MD — VASP defaults
+                                      # to ISIF=0 (no stress tensor); ISIF=2 computes
+                                      # a useless stress every step
+MDALGO   = 3                          # Langevin thermostat (stochastic, good for NVT)
+POTIM    = 1.0                        # Time step (fs); standard for H-containing systems
+                                      # VALIDATION: check first 100 steps ion displacement < 0.1 Å
+                                      # If exceeded, reduce to 0.5 fs
+NSW      = 5000                       # Total MD steps; 5 ps at 1 fs/step (extend as needed)
+TEBEG    = 330                        # Starting temperature (K)
+TEEND    = 330                        # Target temperature (K)
+RANDOM_SEED = 12345 0 0               # Three integers required by VASP 6.x (vasp.at/wiki/RANDOM_SEED);
+                                      # fix seed for reproducible stochastic MD
+
+# Langevin friction coefficients (ps^-1), one value per POTCAR species (NTYP values,
+# in POSCAR element order). A single value applies the same gamma to ALL species,
+# which is usually unintended for multi-component systems (vasp.at/wiki/LANGEVIN_GAMMA).
+# Example for H-O-Pt: LANGEVIN_GAMMA = 10.0 5.0 1.0
+# H (light) needs stronger coupling; Pt (heavy) needs weaker
+LANGEVIN_GAMMA = 10.0                 # NOTE: single-species default; for NTYP>1 replace
+                                      # with an array of NTYP values in POSCAR element order
+
+# ------------------------------------------------------------------------------
+# IV. ACCURACY
+# ------------------------------------------------------------------------------
+LASPH    = .TRUE.                     # Non-spherical contributions in PAW
+ISYM     = 0                          # Disable symmetry; required for MD
+# ADDGRID: leave OFF for AIMD — the fine augmentation grid buys force precision
+#          that thermal noise drowns anyway (~20-30% slower per step). Enable it
+#          only for final static single-points whose forces feed ML labels.
+# LREAL  : optional; Auto helps >100-atom cells but keep consistent with your
+#          reference workflow (verified interface-AIMD recipes ran default .FALSE.)
+
+# ------------------------------------------------------------------------------
+# V. I/O CONTROL (both files are written ONCE at run end - never per MD step)
+# ------------------------------------------------------------------------------
+LWAVE    = .FALSE.                    # WAVECAR is GB-scale; MD restarts use CONTCAR
+                                      # (positions + velocities), orbitals add no value
+LCHARG   = .TRUE.                     # CHGCAR ~50 MB, written once at run end:
+                                      # density relay for downstream SG-AIMD frames
+                                      # and divergent-system restarts (ICHARG=1).
+                                      # Locally verified: a converged density from a
+                                      # chemically similar geometry cures the
+                                      # atomic-superposition SCF divergence (FEXCP)
+                                      # seen on post-AIMD metal/water snapshots
+
+# ------------------------------------------------------------------------------
+# VI. PARALLELIZATION
+# ------------------------------------------------------------------------------
+NCORE    = 4                          # MUST be set explicitly — an unset NCORE defaults
+                                      # to 1 and is grossly inefficient (VASP warns in OUTCAR).
+                                      # 4-8 tested optimal on 56-64 core nodes
+# NPAR   = 4                          # Alternative to NCORE (NPAR = cores/NCORE); set one
+# KPAR   = 1                          # K-point parallelization; >1 only if multiple kpts
+
+# --- For metal-slab / electrolyte AIMD also consider pinning NBANDS explicitly:
+#     the auto value drifts with VASP version, binary (std/gam) and PAW variant
+#     (Pt has ZVAL=10, Pt_pv 16 → ~100 occupied-band difference!). Rule of thumb:
+#     NBANDS ≈ 1.2-1.4 x occupied bands, after checking POTCAR ZVAL.
+
+# END OF INCAR

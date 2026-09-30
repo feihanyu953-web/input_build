@@ -1,0 +1,38 @@
+# ==============================================================================
+# L5 · Electrolyte MD under an applied electric field (fix efield)
+# ==============================================================================
+
+units           real
+atom_style      full                # charges required: fix efield acts via q x E
+boundary        p p p
+newton          on
+
+read_data       system.data         # NOTE: 替换为你的 electrolyte data 文件
+
+# >>> USER: define the electrolyte group (field acts on this group) <<<
+# group         electrolyte type 1 2 3 4 5
+
+# --- Force field ---
+# >>> USER: insert pair_style/pair_coeff here (must carry charges) <<<
+# pair_style      lj/cut/coul/long 12.0
+# pair_coeff      ...
+kspace_style    pppm 1.0e-5
+
+neighbor        2.0 bin
+neigh_modify    every 1 delay 0 check yes
+timestep        0.5                 # fs (units real)
+
+velocity        all create 300.0 12345 dist gaussian
+fix             nvt all nvt temp 300.0 300.0 100.0
+
+# --- Applied field: 0.05 V/A along z (ramp up, do not switch on abruptly) ---
+variable        ez equal ramp(0.0, 0.05)
+# fix           fld electrolyte efield 0.0 0.0 v_ez   # uncomment after defining the group
+
+thermo          100
+thermo_style    custom step temp pe etotal vol
+
+dump            1 all custom 1000 traj.lammpstrj id type x y z q
+dump_modify     1 sort id
+
+run             100000

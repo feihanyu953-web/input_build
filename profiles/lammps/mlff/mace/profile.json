@@ -1,0 +1,52 @@
+{
+  "profile_id": "mlff/mace",
+  "profile_version": 1,
+  "trigger": {
+    "activation": "explicit user selection of mlff/mace profile; never inferred from pair_style or elements alone",
+    "auto_infer": false,
+    "spec_conditions": ["potential.family == mace", "potential.pair_style starts with mace", "potential.artifacts non-empty with sha256", "runtime.packages contains ML-MACE"]
+  },
+  "required_spec_fields": ["potential.family", "potential.pair_style", "potential.artifacts", "potential.type_elements", "runtime.packages", "protocol.stages"],
+  "renderer_extensions": [
+    {"anchor": "system_setup", "description": "enforce atom_style atomic (no bond topology for MLFF); no kspace_style", "ordering": "before read_data", "conflict_anchors": ["system_setup"]},
+    {"anchor": "force_field", "description": "emit pair_style mace and pair_coeff with user-provided model path and element order matching type_map", "ordering": "after read_data, before minimize", "conflict_anchors": ["force_field"]},
+    {"anchor": "output", "description": "include forces in dump for active-learning and error-estimation workflows", "ordering": "after production fix, before run", "conflict_anchors": []}
+  ],
+  "static_rules": [
+    {"code": "MACE_TYPE_ELEMENT_ORDER", "severity": "ERROR", "check_id": "type_elements_match_type_map", "description": "potential.type_elements must equal system.type_map values in numerical type order"},
+    {"code": "MACE_NO_KSPACE", "severity": "ERROR", "check_id": "no_kspace_style", "description": "MACE is a local MLFF; kspace_style must not appear"},
+    {"code": "MACE_ATOM_STYLE_ATOMIC", "severity": "ERROR", "check_id": "atom_style_atomic", "description": "MACE requires atom_style atomic; bond topology is not supported"},
+    {"code": "MACE_MODEL_HASH_PRESENT", "severity": "ERROR", "check_id": "model_artifact_has_sha256", "description": "potential.artifacts[0].sha256 must be present and non-empty"},
+    {"code": "MACE_NO_EFIELD", "severity": "ERROR", "check_id": "no_fix_efield", "description": "fix efield must not appear; MACE does not expose per-atom charges"},
+    {"code": "MACE_TRAINING_DOMAIN_UNCLAIMED", "severity": "WARN", "check_id": "no_training_domain_claim", "description": "profile does not claim model training-domain applicability; L4 requires independent DFT validation evidence"}
+  ],
+  "capability_requirements": [
+    {"kind": "package", "value": "ML-MACE"},
+    {"kind": "pair_style", "value": "mace"}
+  ],
+  "smoke_protocol": {
+    "steps": ["run 0: energy and force evaluation, check no NaN or Inf in thermo", "short NVT 50 to 100 steps: check energy finite, no lost atoms, no atom ejection", "NVE drift test 100 to 500 steps: check total energy drift within profile-defined threshold"],
+    "checks": ["return code 0 and log contains Loop time", "no ERROR, lost atoms, or NaN or Inf in log", "atom count conserved between read_data and final dump", "thermo fields present and finite", "minimum interatomic distance does not collapse below 0.5 Angstrom", "NVE energy drift per atom per ps within threshold"],
+    "thresholds": {"nve_drift_eV_per_atom_per_ps_max": 0.01, "min_distance_A": 0.5}
+  },
+  "l4_acceptance": {
+    "required_evidence": [
+      {"key": "independent_dft_validation", "metric": "energy RMSE and force RMSE against an independent DFT dataset not used for training", "blocks_without": "L4"},
+      {"key": "nve_energy_drift", "metric": "NVE total energy drift per atom per ps from a real LAMMPS run with this model", "blocks_without": "L4"},
+      {"key": "structure_coverage", "metric": "validation set covers the target composition and coordination environments", "blocks_without": "L4"}
+    ],
+    "fail_closed": true
+  },
+  "unresolved_behavior": [
+    {"missing_fact": "model file sha256", "blocks_level": "L0"},
+    {"missing_fact": "type_elements order", "blocks_level": "L0"},
+    {"missing_fact": "independent DFT validation dataset", "blocks_level": "L4"},
+    {"missing_fact": "NVE drift evidence", "blocks_level": "L4"},
+    {"missing_fact": "training domain documentation", "blocks_level": "L4"}
+  ],
+  "official_refs": ["https://docs.lammps.org/pair_mace.html", "https://mace-docs.readthedocs.io/"],
+  "post_run_handoff": {
+    "outputs": ["trajectory with forces (dump custom id type x y z fx fy fz)", "thermo log (step temp pe ke etotal press)", "restart files"],
+    "handoff_targets": ["post-processing skill for RDF and MSD analysis", "active-learning workflow for model retraining"]
+  }
+}

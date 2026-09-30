@@ -1,0 +1,6 @@
+units metal
+atom_style atomic
+boundary p p p
+print "hash # inside quotes"
+variable x equal 1.0 # inline comment
+run 0

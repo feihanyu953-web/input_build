@@ -1,0 +1,16 @@
+# ==============================================================================
+# Applied Electric Field Snippet (fix efield)
+# Apply when: Electrolyte / slab MD under a uniform external field
+# ==============================================================================
+# PREREQUISITES:
+# - Acts ONLY on charged atoms (force = q x E): pair style must carry charges
+#   (e.g. lj/cut/coul/long with atom_style full). Most MLFF models do NOT expose
+#   per-atom q — check your model before applying a field to it.
+# - With units metal the field is in V/A; 0.1 V/A is already strong.
+
+# >>> USER: replace "electrolyte" with your own group name <<<
+fix             fld electrolyte efield 0.0 0.0 0.1    # ex ey ez (V/A, units metal)
+
+# Gentler onset: ramp the field instead of switching it on
+# variable        ez equal ramp(0.0, 0.1)
+# fix             fld electrolyte efield 0.0 0.0 v_ez

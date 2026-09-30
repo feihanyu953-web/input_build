@@ -1,0 +1,57 @@
+# ==============================================================================
+# VASP INCAR | Si Bulk Optical Properties (Static SCF + Optics)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = Si Bulk Optical Properties   # Human-readable job title
+PREC     = Normal                       # Normal precision; ENCUT manually controlled
+ENCUT    = 400                          # Plane-wave cutoff (eV); >= max ENMAX in POTCAR
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal                       # Normal Davidson/RMM-DIIS mixer
+EDIFF    = 1E-6                         # Tighter SCF convergence for static runs
+ISMEAR   = 0                            # Gaussian smearing (semiconductor)
+SIGMA    = 0.05                         # Small smearing width (eV) for sharp DOS
+ISTART   = 0                            # Start from scratch (no WAVECAR)
+ICHARG   = 2                            # Superposition of atomic charge densities
+NELMIN   = 6                            # Min SCF steps before assessing convergence
+NELM     = 100                          # Max SCF steps
+ISPIN    = 1                            # Non-magnetic
+
+# ------------------------------------------------------------------------------
+# III. OPTICS SETTINGS
+# ------------------------------------------------------------------------------
+LOPTICS  = .TRUE.                       # Calculate optical dielectric tensor (RPA)
+CSHIFT   = 0.1                          # Complex shift for broadening (eV)
+NEDOS    = 3000                         # Fine energy grid for smooth optical spectra
+# LOPTICS needs many empty bands, otherwise high-energy transitions are truncated
+# (vasp.at/wiki/LOPTICS). Use ~2-3x the default NBANDS of the prior SCF run
+# (check its OUTCAR "NBANDS="; ~10 for this 2-atom Si cell).
+NBANDS   = 32                           # ~3x SCF default; converge vs spectra
+
+# ------------------------------------------------------------------------------
+# IV. ACCURACY
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.                       # Finer FFT grid for accurate PAW potentials
+LASPH    = .TRUE.                       # Non-spherical contributions in PAW
+LREAL    = .FALSE.                      # Reciprocal-space projection (accurate for static)
+
+# ------------------------------------------------------------------------------
+# V. OUTPUT
+# ------------------------------------------------------------------------------
+LCHARG   = .TRUE.                       # Write CHGCAR for restart / DOS / post-processing
+LWAVE    = .TRUE.                       # Write WAVECAR for restart / NEB / band structure
+LVTOT    = .FALSE.                      # Do not write LOCPOT by default (save disk)
+
+# ------------------------------------------------------------------------------
+# VI. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 4                            # Orbitals per core; tune for your queue / node
+# NPAR   = 4                            # Bands parallelized over NPAR groups
+# KPAR   = 1                            # K-point parallelization; >1 only if multiple kpts
+
+# END OF INCAR

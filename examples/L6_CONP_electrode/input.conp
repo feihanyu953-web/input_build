@@ -1,0 +1,48 @@
+# ==============================================================================
+# L6 · Constant-potential electrode MD (fix electrode/conp, finite-field mode)
+# ==============================================================================
+# Requires LAMMPS built with the ELECTRODE package.
+
+units           real
+atom_style      full
+boundary        p p p               # finite-field mode keeps full periodicity
+newton          on
+
+read_data       system.data         # NOTE: 替换为你的 electrode + electrolyte data 文件
+
+# --- Electrode / electrolyte groups (adapt type IDs to your data file) ---
+group           bot type 6
+group           top type 7
+group           electrolyte subtract all bot top
+
+# --- Force field ---
+# >>> USER: insert pair_style/pair_coeff here (must include coul/long) <<<
+# pair_style      lj/cut/coul/long 12.0
+# pair_coeff      ...
+
+kspace_style    pppm/electrode 1.0e-7   # /electrode variant is MANDATORY
+
+neighbor        2.0 bin
+neigh_modify    every 1 delay 0 check yes
+timestep        1.0                 # fs; pair with fix shake for rigid water
+
+velocity        all create 300.0 12345 dist gaussian
+fix             nvt electrolyte nvt temp 300.0 300.0 100.0
+
+# --- Constant potential difference, ramped 0 -> 2 V ---
+variable        v equal ramp(0.0, 2.0)
+fix             conp bot electrode/conp -1.0 1.805 couple top v_v symm on ffield yes etypes on
+fix_modify      conp energy yes
+
+# --- Electrode charge monitoring ---
+variable        q atom q
+compute         qbot bot reduce sum v_q
+compute         qtop top reduce sum v_q
+
+thermo          100
+thermo_style    custom step temp pe etotal c_qbot c_qtop
+
+dump            1 all custom 1000 traj.lammpstrj id type x y z q
+dump_modify     1 sort id
+
+run             100000

@@ -1,0 +1,93 @@
+# ==============================================================================
+# VASP INCAR | Static Dielectric Tensor (DFPT)
+# Sources: VASP Wiki LEPSILON (https://www.vasp.at/wiki/index.php/LEPSILON)
+#          VASP Wiki IBRION (https://www.vasp.at/wiki/index.php/IBRION)
+#          VASP SiC dielectric tutorial
+#          https://www.vasp.at/wiki/index.php/Dielectric_properties_of_SiC
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = VASP dielectric            # Human-readable job title
+PREC     = Accurate                   # Accurate for smooth response
+ENCUT    = 520                        # High cutoff, especially for oxides
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal                     # Normal Davidson/RMM-DIIS mixer
+EDIFF    = 1E-8                       # Very tight SCF convergence
+ISMEAR   = 0                          # Gaussian smearing
+SIGMA    = 0.01                       # Small smearing for insulator/semiconductor
+ISTART   = 0                          # Orbitals from scratch: vasp_scf no longer
+                                      # writes WAVECAR by default (flip its LWAVE
+                                      # and restore ISTART=1 for the handoff)
+ICHARG   = 1                          # Read CHGCAR as the SCF initial guess
+                                      # (self-consistent; ICHARG=11 would fix it)
+# NOTE: If no CHGCAR/WAVECAR available, use ISTART=0, ICHARG=2 and run full SCF
+NELM     = 100                        # Max SCF steps
+NELMIN   = 6                          # Min SCF steps
+
+# ------------------------------------------------------------------------------
+# III. STATIC DIELECTRIC RESPONSE
+# ------------------------------------------------------------------------------
+LEPSILON = .TRUE.                     # Static dielectric tensor via DFPT
+                                      # Source: https://www.vasp.at/wiki/index.php/LEPSILON
+
+# LEPSILON computes the ion-clamped dielectric matrix, Born effective charges,
+# and piezoelectric tensor. It does NOT require extra empty bands; increasing
+# NBANDS will only make the calculation slower.
+
+# ------------------------------------------------------------------------------
+# IV. OPTIONAL IONIC CONTRIBUTION
+# ------------------------------------------------------------------------------
+# To include ionic (phonon) contributions to the static dielectric constant,
+# uncomment the lines below. This requires a prior converged SCF and uses
+# DFPT with symmetry (IBRION=8).
+# Source: https://www.vasp.at/wiki/index.php/Dielectric_properties_of_SiC
+# IBRION = 8
+# LPEAD  = .TRUE.
+# NSW    = 1
+
+# ------------------------------------------------------------------------------
+# V. ACCURACY
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.                     # Finer FFT grid for accurate potential
+LASPH    = .TRUE.                     # Non-spherical contributions in PAW
+LREAL    = .FALSE.                    # Reciprocal-space projection (accurate)
+
+# ------------------------------------------------------------------------------
+# VI. OUTPUT
+# ------------------------------------------------------------------------------
+LCHARG   = .TRUE.                     # Keep CHGCAR for restart / post-processing
+LWAVE    = .FALSE.                    # Static run; no WAVECAR consumer by default
+
+# ------------------------------------------------------------------------------
+# VII. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 4                          # Orbitals per core; tune for your queue
+# NPAR   = 4                          # Bands parallelized over NPAR groups
+# KPAR   = 1                          # k-point parallelization
+
+# END OF INCAR
+
+# ==============================================================================
+# POST-PROCESSING INSTRUCTIONS
+# ==============================================================================
+# The static dielectric tensor is written to OUTCAR. Search for:
+#   "MACROSCOPIC STATIC DIELECTRIC TENSOR" (ion-clamped)
+#   "BORN EFFECTIVE CHARGES" (if LEPSILON=.TRUE.)
+#   "PIEZOELECTRIC TENSOR" (if LEPSILON=.TRUE.)
+#
+# For ionic contribution with IBRION=8, also search for:
+#   "MACROSCOPIC STATIC DIELECTRIC TENSOR IONIC CONTRIBUTION"
+#
+# Extraction:
+#   $ grep -A 10 "MACROSCOPIC STATIC DIELECTRIC TENSOR" OUTCAR
+#
+# Important caveats:
+# - Do NOT set LOPTICS=.TRUE. together with LEPSILON=.TRUE.
+# - LEPSILON does not support hybrid/HF functionals.
+# - For insulators/semiconductors, use ISMEAR=0 with a small SIGMA.
+# ==============================================================================

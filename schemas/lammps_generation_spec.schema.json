@@ -1,0 +1,455 @@
+{
+  "$defs": {
+    "ensemble": {
+      "enum": [
+        "nve",
+        "nvt",
+        "nve_langevin"
+      ],
+      "type": "string"
+    },
+    "lammpsUnits": {
+      "enum": [
+        "metal",
+        "real"
+      ],
+      "type": "string"
+    },
+    "modifierName": {
+      "enum": [
+        "efield_lammps",
+        "shake_lammps",
+        "analysis_rdf_msd",
+        "analysis_hbond",
+        "ensemble_langevin",
+        "temp_ramp",
+        "dump_full",
+        "wall_slab"
+      ],
+      "type": "string"
+    },
+    "nonEmptyString": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "provenanceSource": {
+      "enum": [
+        "user-provided",
+        "user-confirmed",
+        "detected",
+        "generated",
+        "ai-inferred"
+      ]
+    },
+    "sha256": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "artifact": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "mdStage": {
+      "additionalProperties": false,
+      "properties": {
+        "damping_fs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ensemble": {
+          "$ref": "#/$defs/ensemble"
+        },
+        "kind": {
+          "const": "md"
+        },
+        "stage_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "steps": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "temperature_start_K": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "temperature_stop_K": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "velocity_seed": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "velocity_temperature_K": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "stage_id",
+        "ensemble",
+        "steps",
+        "temperature_start_K",
+        "temperature_stop_K",
+        "damping_fs",
+        "velocity_temperature_K",
+        "velocity_seed"
+      ],
+      "type": "object"
+    },
+    "minimizeStage": {
+      "additionalProperties": false,
+      "properties": {
+        "etol": {
+          "type": "number"
+        },
+        "ftol": {
+          "type": "number"
+        },
+        "kind": {
+          "const": "minimize"
+        },
+        "maxeval": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxiter": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stage_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "style": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      },
+      "required": [
+        "kind",
+        "stage_id",
+        "style",
+        "etol",
+        "ftol",
+        "maxiter",
+        "maxeval"
+      ],
+      "type": "object"
+    },
+    "modifierSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/modifierName"
+        },
+        "stage_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "stage_id"
+      ],
+      "type": "object"
+    },
+    "potential": {
+      "additionalProperties": false,
+      "properties": {
+        "artifacts": {
+          "items": {
+            "$ref": "#/$defs/artifact"
+          },
+          "type": "array"
+        },
+        "family": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "pair_coeff": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "pair_style": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "type_elements": {
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "family",
+        "pair_style",
+        "pair_coeff",
+        "artifacts",
+        "type_elements"
+      ],
+      "type": "object"
+    },
+    "protocol": {
+      "additionalProperties": false,
+      "properties": {
+        "stages": {
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/minimizeStage"
+              },
+              {
+                "$ref": "#/$defs/mdStage"
+              }
+            ]
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "timestep_fs": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "units": {
+          "$ref": "#/$defs/lammpsUnits"
+        }
+      },
+      "required": [
+        "units",
+        "timestep_fs",
+        "stages"
+      ],
+      "type": "object"
+    },
+    "provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "potential": {
+          "$ref": "#/$defs/provenanceSource"
+        },
+        "protocol": {
+          "$ref": "#/$defs/provenanceSource"
+        },
+        "structure": {
+          "$ref": "#/$defs/provenanceSource"
+        },
+        "type_map": {
+          "$ref": "#/$defs/provenanceSource"
+        }
+      },
+      "required": [
+        "structure",
+        "type_map",
+        "potential",
+        "protocol"
+      ],
+      "type": "object"
+    },
+    "runtime": {
+      "additionalProperties": false,
+      "properties": {
+        "binary": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "packages": {
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          },
+          "uniqueItems": true,
+          "type": "array"
+        },
+        "target": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "version": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      },
+      "required": [
+        "binary",
+        "version",
+        "packages",
+        "target"
+      ],
+      "type": "object"
+    },
+    "system": {
+      "additionalProperties": false,
+      "properties": {
+        "atom_count": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "atom_style": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "atom_types": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "data_file": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "data_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "has_h": {
+          "type": "boolean"
+        },
+        "periodicity": {
+          "items": {
+            "enum": [
+              "p",
+              "f",
+              "s",
+              "m"
+            ]
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "type_map": {
+          "additionalProperties": {
+            "$ref": "#/$defs/nonEmptyString"
+          },
+          "minProperties": 1,
+          "propertyNames": {
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "data_file",
+        "data_sha256",
+        "atom_count",
+        "atom_types",
+        "type_map",
+        "has_h",
+        "atom_style",
+        "periodicity"
+      ],
+      "type": "object"
+    },
+    "unresolved": {
+      "additionalProperties": false,
+      "properties": {
+        "blocks_level": {
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5"
+          ]
+        },
+        "key": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "reason": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      },
+      "required": [
+        "key",
+        "blocks_level",
+        "reason"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "lammps_generation_spec.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "code": {
+      "const": "lammps"
+    },
+    "input_file": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "modifiers": {
+      "items": {
+        "$ref": "#/$defs/modifierSelection"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "potential": {
+      "$ref": "#/$defs/potential"
+    },
+    "profiles": {
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "protocol": {
+      "$ref": "#/$defs/protocol"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "runtime": {
+      "$ref": "#/$defs/runtime"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "system": {
+      "$ref": "#/$defs/system"
+    },
+    "task": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "unresolved": {
+      "items": {
+        "$ref": "#/$defs/unresolved"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "code",
+    "task",
+    "input_file",
+    "system",
+    "potential",
+    "protocol",
+    "profiles",
+    "modifiers",
+    "provenance",
+    "unresolved"
+  ],
+  "title": "input_build LAMMPS GenerationSpec",
+  "type": "object"
+}

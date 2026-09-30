@@ -1,0 +1,14 @@
+# ==============================================================================
+# Ensemble Snippet: NVT via NVE + Langevin thermostat
+# Apply when: gentle/implicit-solvent-style thermostatting, or when a Nose-Hoover
+#             chain (fix nvt) is undesirable; CHOOSE ONE: this block OR fix nvt
+# ==============================================================================
+# USAGE:
+# - damp is the Langevin damping constant; a typical value is 100 fs
+#   (units metal: 0.1 ps; units real: 100.0 fs).
+# - seed is REQUIRED (any positive integer); fix it for reproducibility.
+# - Do NOT combine with fix nvt on the same group (double thermostat).
+
+fix             dyn all nve
+fix             lg all langevin 300.0 300.0 0.1 12345
+#                          Tstart Tstop damp(ps, metal) seed

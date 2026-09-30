@@ -1,0 +1,112 @@
+# ==============================================================================
+# VASP INCAR | SG-AIMD growth stage (slow growth + thermodynamic integration)
+# ==============================================================================
+# Two-stage protocol - do NOT skip stage 1:
+#   stage 1 (equilibration): INCREM commented out (= 0) + LBLUEOUT=.FALSE.
+#                            constrained MD holding the CV at its initial value
+#   stage 2 (growth, THIS file): INCREM activated + LBLUEOUT=.TRUE.
+# Both stages share ONE ICONST file. Generate both with:
+#   python scripts/iconst_helper.py render ... --emit-incar
+# Requires: an ICONST file in the run directory, and VASP built with -Dtbdyn
+# (default since 5.4.4). Free-energy gradient lands in REPORT.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = VASP SG-AIMD growth stage  # Human-readable job title
+PREC     = Normal                     # Normal precision; ENCUT manually controlled
+ENCUT    = 400                        # Plane-wave cutoff (eV); >= max ENMAX in POTCAR
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Fast                       # RMM-DIIS; fastest converging default for AIMD
+EDIFF    = 1E-4                       # AIMD: tighter than 1E-4 is wasted effort
+ISMEAR   = 0                          # Gaussian smearing
+SIGMA    = 0.1                        # Smearing width (eV)
+NELM     = 200                        # Max SCF steps per MD step
+
+# --- Density relay --------------------------------------------------------------
+# ICHARG=1 starts the run from a staged CHGCAR instead of atomic superposition.
+# Chain: parent AIMD (vasp_md, LCHARG=.TRUE.) writes an end-of-run CHGCAR ->
+# copy it into the frame dir -> equilibration reads it here -> the equil
+# (LCHARG=.TRUE. in section V) writes its own -> the growth stage reads that
+# geometry-matched one. Requires the SAME ENCUT and POTCAR lineage as the
+# CHGCAR producer. If no CHGCAR is staged, comment this line out (default
+# ICHARG=2) or run a static SCF on the starting geometry first (two-phase
+# init fallback: IBRION=-1, NSW=0, LCHARG=.TRUE.).
+ICHARG   = 1                          # Read CHGCAR as the initial density guess
+
+# --- Charge-density mixing for metal/liquid interfaces -------------------------
+# IF the system is a metal slab + explicit solvent (water/ions), ADD these three
+# lines - default AMIX=0.4 charge-sloshes on such interfaces and diverges:
+#   AMIX = 0.02
+#   BMIX = 1.0
+#   AMIN = 0.01
+# Do NOT substitute BMIX=0.01 (that belongs to the static two-step SCF recipe).
+# ------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
+# III. MOLECULAR DYNAMICS
+# ------------------------------------------------------------------------------
+IBRION   = 0                          # MD mode; ICONST is only read for IBRION=0
+                                      # Do NOT set ISIF (VASP defaults to 0 here)
+MDALGO   = 2                          # Nose-Hoover. Slow growth requires MDALGO=1
+                                      # or 2 - MDALGO=3 (Langevin) is NOT supported
+                                      # Alternative: MDALGO=1 (Andersen) with
+                                      # ANDERSEN_PROB = 0.1 for stronger coupling
+SMASS    = 0.5                        # Nose mass. Too small -> energy drift;
+                                      # too large -> the thermostat stops working.
+                                      # Check the temperature trace before trusting
+POTIM    = 1.0                        # Time step (fs); <= 1.0 with H present
+NSW      = 6000                       # Total MD steps; with INCREM this also sets
+                                      # the total CV travel: dCV = NSW x INCREM
+TEBEG    = 330                        # Starting temperature (K)
+TEEND    = 330                        # Target temperature (K); keep equal to TEBEG
+                                      # - in slow growth the CV ramps, not T
+RANDOM_SEED = 12345 0 0               # Three integers (VASP 6.x). With MDALGO=2 the
+                                      # dynamics is deterministic: the seed only
+                                      # affects the initial velocity draw. This is
+                                      # NOT the Langevin case, where the seed drives
+                                      # a random force at every step
+
+# --- Slow growth --------------------------------------------------------------
+# INCREM: per-MD-step increment of every ICONST STATUS=0 parameter. One value per
+# controlled parameter. Mind: when a complex coordinate (S/C/D) is present, the
+# status of every preceding primitive is IGNORED, so only the complex
+# coordinates count. Left commented on purpose - scripts/iconst_helper.py
+# computes it as (xi_final - xi_initial)/NSW and writes it in. A negative value
+# simply means the CV decreases.
+# INCREM = -1.333E-4
+LBLUEOUT = .TRUE.                     # Write the free-energy gradient to REPORT;
+                                      # without it the integration is impossible
+                                      # Set .FALSE. for the equilibration stage
+
+# ------------------------------------------------------------------------------
+# IV. ACCURACY
+# ------------------------------------------------------------------------------
+LASPH    = .TRUE.                     # Non-spherical contributions in PAW
+ISYM     = 0                          # Disable symmetry; required for MD
+
+# ------------------------------------------------------------------------------
+# V. I/O CONTROL (both files are written ONCE at run end - never per MD step)
+# ------------------------------------------------------------------------------
+LWAVE    = .FALSE.                    # WAVECAR is GB-scale; restarts use CONTCAR
+LCHARG   = .TRUE.                     # Equil writes its converged density so the
+                                      # growth stage can start ICHARG=1 from a
+                                      # geometry-matched CHGCAR (see relay note
+                                      # in the ELECTRONIC SCF section)
+
+# ------------------------------------------------------------------------------
+# VI. PARALLELIZATION
+# ------------------------------------------------------------------------------
+NCORE    = 4                          # MUST be explicit - unset defaults to 1
+# KPAR   = 1                          # Only > 1 with multiple k-points
+
+# --- For metal-slab / electrolyte runs also pin NBANDS explicitly: the auto
+#     value drifts with VASP version, binary (std/gam) and PAW variant
+#     (Pt ZVAL=10 vs Pt_pv 16 shifts occupied bands by ~100).
+#     NBANDS ~= 1.2-1.4 x occupied bands after checking POTCAR ZVAL.
+
+# END OF INCAR

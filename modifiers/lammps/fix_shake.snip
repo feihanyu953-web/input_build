@@ -1,0 +1,18 @@
+# ==============================================================================
+# Rigid Water Constraint Snippet (fix shake)
+# Apply when: MD with explicit water (SPC/E, TIP3P, TIP4P) — constrain O-H bonds
+#             and the H-O-H angle so the timestep can be relaxed to 2 fs
+# ==============================================================================
+# PREREQUISITES / RULES:
+# - Requires LAMMPS built with the RIGID package (fix shake lives there).
+# - shake constrains SMALL-MOLECULE clusters only (water OK); it is NOT a general
+#   constraint solver for polymers or frameworks.
+# - ORDER MATTERS: define fix shake AFTER every fix that adds forces
+#   (fix efield, fix wall/...); otherwise the constraints are not satisfied.
+# - With rigid water the timestep can be relaxed from 0.5-1 fs to 2 fs
+#   (units metal: timestep 0.002; units real: timestep 2.0).
+
+# >>> USER: replace "water" with your water group, and fill the TYPE IDs:
+# b <O-H bond type>  a <H-O-H angle type>  (types as numbered in the data file) <<<
+fix             1 water shake 1.0e-4 20 10 b 1 a 1
+#                 tol  iter max  ^bond-type   ^angle-type

@@ -1,0 +1,124 @@
+# ==============================================================================
+# CP2K Input | Au(111) Slab Work Function via Hartree Potential (planar-avg)
+# Source: CP2K manual FORCE_EVAL/DFT/PRINT/V_HARTREE_CUBE (2026.1-safe route)
+#         CP2K manual FORCE_EVAL/DFT/PLANAR_AVERAGED_V_HARTREE (2026.2-dev+)
+# Version gate (runtime-verified): &PLANAR_AVERAGED_V_HARTREE was added in the
+# 2026.2-dev trunk; CP2K 2026.1 aborts on it. This example therefore uses
+# &V_HARTREE_CUBE (cube file + external planar average).
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+&GLOBAL
+  PROJECT     Au111_workfunction
+  RUN_TYPE    ENERGY
+  PRINT_LEVEL LOW
+&END GLOBAL
+
+# ------------------------------------------------------------------------------
+# II. FORCE EVALUATION
+# ------------------------------------------------------------------------------
+&FORCE_EVAL
+  METHOD Quickstep
+
+  &DFT
+    BASIS_SET_FILE_NAME  ./BASIS_MOLOPT
+    POTENTIAL_FILE_NAME  ./GTH_POTENTIALS
+
+    &QS
+      EPS_DEFAULT 1.0E-12
+      METHOD      GPW
+    &END QS
+
+    &MGRID
+      CUTOFF      600
+      REL_CUTOFF  60
+      NGRIDS      4
+    &END MGRID
+
+    &XC
+      &XC_FUNCTIONAL PBE
+      &END XC_FUNCTIONAL
+    &END XC
+
+    &SCF
+      SCF_GUESS   RESTART
+      EPS_SCF     1.0E-7
+      MAX_SCF     300
+
+      &DIAGONALIZATION
+        ALGORITHM STANDARD
+      &END DIAGONALIZATION
+
+      &MIXING
+        METHOD   BROYDEN_MIXING
+        ALPHA    0.4
+        NBROYDEN 8
+      &END MIXING
+
+      &SMEAR
+        METHOD FERMI_DIRAC
+        ELECTRONIC_TEMPERATURE [K] 300
+      &END SMEAR
+      ADDED_MOS 100
+    &END SCF
+
+    &POISSON
+      PERIODIC XYZ
+    &END POISSON
+
+    &KPOINTS
+      SCHEME MONKHORST-PACK 4 4 1
+    &END KPOINTS
+
+    # --- Built-in planar-averaged Hartree potential (CP2K >= 2026.2 ONLY) ---
+    # &PLANAR_AVERAGED_V_HARTREE is a 2026.2-dev trunk addition; CP2K 2026.1
+    # aborts on it ("unknown subsection ... of section DFT", runtime-verified).
+    # On >= 2026.2 you may drop &V_HARTREE_CUBE and uncomment instead:
+    # &PLANAR_AVERAGED_V_HARTREE
+    #   SECTION_PARAMETERS ON
+    #   PARALLEL_PLANE XY             # Surface in xy-plane, normal along z
+    # &END PLANAR_AVERAGED_V_HARTREE
+
+    &PRINT
+      # 2026.1-safe route: Hartree potential cube; plane-average externally
+      # over the xy planes (numpy / cp2kdata / macroavg) to get V(z).
+      &V_HARTREE_CUBE ON
+      &END V_HARTREE_CUBE
+    &END PRINT
+
+  &END DFT
+
+  &SUBSYS
+    &CELL
+      ABC     8.320 8.320 30.000      # Au(111) 3x3 slab with vacuum
+      ALPHA_BETA_GAMMA 90.0 90.0 90.0
+      PERIODIC XYZ
+    &END CELL
+
+    &KIND Au
+      BASIS_SET DZVP-MOLOPT-SR-GTH
+      POTENTIAL GTH-PBE
+    &END KIND
+
+    &TOPOLOGY
+      COORD_FILE_NAME    ./Au111_slab.xyz
+      COORD_FILE_FORMAT  XYZ
+    &END TOPOLOGY
+  &END SUBSYS
+
+&END FORCE_EVAL
+
+# ==============================================================================
+# END OF INPUT
+# ==============================================================================
+# Post-processing:
+# 1. Read the *-v_hartree-1_0.cube file and average over the xy planes to
+#    get V(z) in Hartree (numpy / cp2kdata / CPACR-macroavg).
+#    (CP2K >= 2026.2 alternative: &PLANAR_AVERAGED_V_HARTREE writes the
+#    planar-averaged potential directly.)
+# 2. Identify vacuum plateau (V_vac).
+# 3. Read E_Fermi from CP2K output.
+# 4. Phi = (V_vac - E_Fermi) * 27.211386 eV.
+# ==============================================================================

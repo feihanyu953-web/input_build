@@ -1,0 +1,18 @@
+# ==============================================================================
+# Empty Placeholder Modifier
+# Description: Reference template showing the required patch file format
+# Apply when: No additional modifiers are needed (baseline calculation)
+# ==============================================================================
+
+# This file intentionally contains no parameters.
+# Use it as a template when creating new modifier patches.
+#
+# Required format for every patch:
+#   1. Header block with ===== lines, patch name, description, and apply-when condition.
+#   2. One blank line after the header.
+#   3. Parameter lines formatted as:
+#        PARAM = value     # Explanation / note
+#   4. Multiline explanations indented under the parameter or in comments.
+#
+# Example parameter line:
+#   ENCUT = 520         # Energy cutoff (eV); 1.3 × max ENMAX in POTCARs

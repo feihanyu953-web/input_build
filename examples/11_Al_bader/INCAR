@@ -1,0 +1,72 @@
+# ==============================================================================
+# VASP INCAR | Bader Charge Analysis (Static SCF with fine FFT grid)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = Al FCC Bader Analysis        # Human-readable job title
+PREC     = Accurate                     # Accurate for smooth charge density
+ENCUT    = 400                          # Plane-wave cutoff (eV); >= max ENMAX in POTCAR
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal                       # Normal Davidson/RMM-DIIS mixer
+EDIFF    = 1E-6                         # Tight SCF convergence for accurate density
+ISMEAR   = 0                            # Gaussian smearing (metal)
+SIGMA    = 0.05                         # Small smearing for sharp density
+ISTART   = 0                            # Start from scratch (no WAVECAR)
+ICHARG   = 2                            # Superposition of atomic charge densities
+# NOTE: For restart from prior SCF, use ISTART=1, ICHARG=1
+NELM     = 60                           # Max SCF steps
+NELMIN   = 4                            # Min SCF steps
+ISPIN    = 1                            # Non-magnetic (no Fe/Co/Ni/Mn/Cr)
+
+# ------------------------------------------------------------------------------
+# III. BADER ANALYSIS SETTINGS
+# ------------------------------------------------------------------------------
+LAECHG   = .TRUE.                       # Write core + valence charge density to AECCAR0/AECCAR2
+                                        # Required for Bader charge partitioning
+
+# FFT grid density boost (critical for Bader accuracy):
+# NGXF/NGYF/NGZF should be ~2x the default FFT grid (check OUTCAR for default)
+# Example: if default NGX=112, set NGXF=224
+# NGXF   = 224                          # REPLACE: 2x default FFT grid in x
+# NGYF   = 224                          # REPLACE: 2x default FFT grid in y
+# NGZF   = 224                          # REPLACE: 2x default FFT grid in z
+
+# ------------------------------------------------------------------------------
+# IV. ACCURACY
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.                       # Finer FFT grid for accurate potential
+LASPH    = .TRUE.                       # Non-spherical contributions in PAW
+
+# ------------------------------------------------------------------------------
+# V. OUTPUT
+# ------------------------------------------------------------------------------
+LCHARG   = .TRUE.                       # Write CHGCAR (needed for Bader post-processing)
+LWAVE    = .FALSE.                      # Do not overwrite WAVECAR
+
+# ------------------------------------------------------------------------------
+# VI. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 4                            # Orbitals per core; tune for your queue / node
+# NPAR   = 4                            # Bands parallelized over NPAR groups
+# KPAR   = 1                            # K-point parallelization; >1 only if multiple kpts
+
+# END OF INCAR
+
+# ==============================================================================
+# POST-PROCESSING INSTRUCTIONS
+# ==============================================================================
+# After the calculation completes, run Bader analysis with the Henkelman-group
+# standard flow (theory.cm.utexas.edu/henkelman/code/bader/; vasp.at/wiki/LAECHG):
+#   $ chgsum.pl AECCAR0 AECCAR2          # sum core + valence densities -> CHGCAR_sum
+#   $ bader CHGCAR -ref CHGCAR_sum       # partition valence CHGCAR, using the total
+#                                        # (core+valence) density as reference
+# WARNING: AECCAR0 (core) or AECCAR2 (valence) alone are NOT valid references, and
+#          "bader AECCAR0 AECCAR2" is wrong — it changes basin partitioning and the
+#          resulting charge-transfer numbers.
+# Output: ACF.dat (atomic charges), BCF.dat (bond charges), AVF.dat (volumes)
+# ==============================================================================

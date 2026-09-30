@@ -1,0 +1,3 @@
+units metal
+include sub.in
+run 100

@@ -1,0 +1,6 @@
+units metal
+label loop_start
+variable i loop 5
+run 10
+next i
+jump SELF dynamic.in loop_start

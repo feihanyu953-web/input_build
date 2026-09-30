@@ -1,0 +1,36 @@
+# ==============================================================================
+# L8 · LAMMPS + PLUMED (fix plumed) — biased/enhanced-sampling MD
+# ==============================================================================
+
+units           metal
+atom_style      atomic
+boundary        p p p
+newton          on
+
+read_data       system.data         # NOTE: 替换为你的 data 文件
+
+# --- Force field ---
+# >>> USER: insert pair_style/pair_coeff here <<<
+# pair_style      eam                 # funcfl 单元素格式（如 Al_u3.eam）用 eam；
+# pair_coeff      * * Al_u3.eam       # funcfl 仅 3 参数（无元素符号）；setfl
+                                      #（*.eam.alloy）才用 eam/alloy + 元素符号
+
+neighbor        2.0 bin
+neigh_modify    every 1 delay 0 check yes
+timestep        0.001               # 1 fs (units metal)
+
+velocity        all create 300.0 12345 dist gaussian
+fix             nvt all nvt temp 300.0 300.0 0.1
+
+# --- PLUMED interface: CVs and bias live in plumed.dat ---
+# Rules: only ONE fix plumed at a time; its group-ID is ignored (always all);
+# fix_modify energy/virial default yes for this fix.
+fix             pl all plumed plumedfile plumed.dat outfile p.log
+
+thermo          100
+thermo_style    custom step temp pe etotal vol
+
+dump            1 all custom 1000 traj.lammpstrj id type x y z
+dump_modify     1 sort id
+
+run             100000

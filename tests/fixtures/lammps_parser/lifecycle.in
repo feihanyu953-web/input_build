@@ -1,0 +1,7 @@
+units metal
+fix 1 all nvt temp 300.0 300.0 0.05
+compute 1 all pe
+dump 1 all custom 100 traj.lammpstrj id type x y z
+unfix 1
+undump 1
+run 100

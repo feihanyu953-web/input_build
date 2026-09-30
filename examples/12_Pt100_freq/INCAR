@@ -1,0 +1,52 @@
+# ==============================================================================
+# VASP INCAR | Pt(100)-NH3 Vibrational Frequency (Finite-Difference)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = Pt(100)-NH3 Frequency Calc   # Human-readable job title
+PREC     = Accurate                     # Force-sensitive calc; auto-adds ADDGRID + LREAL opt
+ENCUT    = 400                          # Plane-wave cutoff (eV); >= max ENMAX in POTCAR
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal                       # Normal Davidson/RMM-DIIS mixer
+EDIFF    = 1E-6                         # Tight SCF convergence for accurate forces / Hessian
+ISMEAR   = 0                            # Gaussian smearing (metal)
+SIGMA    = 0.1                          # Smearing width (eV)
+NELMIN   = 6                            # Min SCF steps before assessing convergence
+NELM     = 100                          # Max SCF steps
+ISTART   = 0                            # Start from scratch (no WAVECAR)
+ICHARG   = 2                            # Superposition of atomic charge densities
+ISPIN    = 1                            # Non-magnetic (no Fe/Co/Ni/Mn/Cr)
+
+# ------------------------------------------------------------------------------
+# III. FREQUENCY SETTINGS
+# ------------------------------------------------------------------------------
+IBRION   = 5                            # Finite-differences for Hessian (selective mode)
+NSW      = 1                            # REQUIRED: IBRION=5/6 needs NSW>0, else VASP does a
+                                        # static SCF only and never enters the finite-difference
+                                        # Hessian/frequency workflow (vasp.at/wiki/IBRION)
+NFREE    = 2                            # 2 displacements per direction (central difference)
+POTIM    = 0.015                        # Displacement amplitude (A); standard for vib. calc
+NWRITE   = 1                            # Write OUTCAR with forces (needed for post-processing)
+ISIF     = 2                            # Relax ions only; fix cell shape / volume
+ISYM     = 0                            # Disable symmetry; frequency calc requires explicit displacements
+
+# ------------------------------------------------------------------------------
+# IV. ACCURACY
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.                       # Finer FFT grid for accurate forces
+LASPH    = .TRUE.                       # Non-spherical contributions in PAW
+LREAL    = .FALSE.                      # Reciprocal-space projection (accurate for forces)
+
+# ------------------------------------------------------------------------------
+# V. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 4                            # Orbitals per core; tune for your queue / node
+# NPAR   = 4                            # Bands parallelized over NPAR groups
+# KPAR   = 1                            # K-point parallelization; >1 only if multiple kpts
+
+# END OF INCAR

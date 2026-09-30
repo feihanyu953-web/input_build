@@ -1,0 +1,57 @@
+# ==============================================================================
+# VASP INCAR | Phonon via phonopy (high-precision single point)
+# ==============================================================================
+# Purpose: accurate FORCES on phonopy-generated displaced supercells
+#          (finite-displacement method). NOT a geometry optimization.
+# Distinct from vasp_freq.incar: `freq` = finite-difference vibrations of a
+# molecule/adsorbate inside VASP (IBRION=5); `phonon` = crystal phonons via
+# phonopy post-processing of single-point force calculations.
+# Workflow:
+#   1. phonopy -d --dim="2 2 2"            # generate disp-*/ (or POSCAR-00x)
+#   2. run this INCAR on every displaced supercell
+#   3. phonopy -f disp-*/vasprun.xml       # collect forces -> FORCE_SETS
+#   4. phonopy --band ...                  # band structure / DOS
+# Alternative: DFPT inside VASP (IBRION = 8) — no supercell needed but no
+#              phonopy interoperability; see VASP wiki.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = phonopy single-point       # Human-readable job title
+PREC     = Accurate                   # Force-sensitive calc
+ENCUT    = 400                        # >= 1.3 x max ENMAX recommended
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal
+EDIFF    = 1E-8                       # VERY tight: forces enter the dynamical matrix
+ISMEAR   = 0                          # Gaussian smearing
+SIGMA    = 0.05                       # small width (insulator/semiconductor default)
+NELM     = 100
+NELMIN   = 6
+
+# ------------------------------------------------------------------------------
+# III. SINGLE POINT (no relaxation!)
+# ------------------------------------------------------------------------------
+IBRION   = -1                         # no ionic update
+NSW      = 0                          # single point only
+# DFPT alternative (instead of the phonopy workflow):
+# IBRION   = 8                        # DFPT phonons at the k-point set of this run
+
+# ------------------------------------------------------------------------------
+# IV. ACCURACY
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.
+LASPH    = .TRUE.
+LREAL    = .FALSE.                    # exact reciprocal-space projection for forces
+ISYM     = 2                          # keep symmetry (phonopy handles displacements)
+
+# ------------------------------------------------------------------------------
+# V. OUTPUT
+# ------------------------------------------------------------------------------
+LWAVE    = .FALSE.                    # no WAVECAR needed per displacement
+LCHARG   = .FALSE.                    # no CHGCAR needed per displacement
+
+# END OF INCAR

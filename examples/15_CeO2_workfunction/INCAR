@@ -1,0 +1,73 @@
+# ==============================================================================
+# VASP INCAR | CeO2(111) Surface Work Function
+# Source: VASP Wiki LVHAR (https://www.vasp.at/wiki/LVHAR)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = CeO2_111_workfunction        # CeO2(111) slab + vacuum
+PREC     = Accurate                     # Accurate for smooth potential
+ENCUT    = 520                          # O POTCAR needs high ENCUT; 1.3x ENMAX
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal                       # Robust for correlated oxide
+EDIFF    = 1E-6                         # Tight SCF convergence
+ISPIN    = 1                            # Ce4+ bulk-like; use ISPIN=2 + MAGMOM if Ce3+/surface states expected
+ISMEAR   = 0                            # Gaussian smearing for oxide
+SIGMA    = 0.05                         # Small smearing for semiconductor/oxide
+ISTART   = 1                            # Read WAVECAR from prior SCF
+ICHARG   = 1                            # Read CHGCAR, keep density fixed
+NELM     = 100                          # DFT+U may need more steps
+NELMIN   = 6                            # Min SCF steps
+
+# ------------------------------------------------------------------------------
+# III. WORK FUNCTION SETTINGS
+# ------------------------------------------------------------------------------
+LVHAR    = .TRUE.                       # Output ionic+Hartree potential to LOCPOT
+IDIPOL   = 3                            # Dipole correction along z
+LDIPOL   = .TRUE.                       # Activate dipole correction
+
+# ------------------------------------------------------------------------------
+# IV. DFT+U SETTINGS (Ce 4f)
+# ------------------------------------------------------------------------------
+LDAU     = .TRUE.
+LDAUTYPE = 2
+LDAUL    = 3 -1                         # Ce = f, O = none
+LDAUU    = 5.0 0.0                      # Literature U(Ce 4f) ~ 5.0 eV
+LDAUJ    = 0.0 0.0
+LMAXMIX  = 6                            # Required for f-electron DFT+U
+
+# ------------------------------------------------------------------------------
+# V. ACCURACY
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.
+LASPH    = .TRUE.
+LREAL    = .FALSE.                      # Accurate reciprocal-space for static
+
+# ------------------------------------------------------------------------------
+# VI. OUTPUT
+# ------------------------------------------------------------------------------
+LCHARG   = .TRUE.
+LWAVE    = .TRUE.
+
+# ------------------------------------------------------------------------------
+# VII. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 4
+# NPAR   = 4
+# KPAR   = 1
+
+# END OF INCAR
+
+# ==============================================================================
+# POST-PROCESSING
+# ==============================================================================
+# 1. Plane-average LOCPOT along z to obtain V_vacuum in the middle of the slab.
+# 2. Read E_Fermi from OUTCAR.
+# 3. Phi = V_vac - E_Fermi.
+#
+# VASPKIT option 426 can do this automatically.
+# ==============================================================================

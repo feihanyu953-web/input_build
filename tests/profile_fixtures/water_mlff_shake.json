@@ -1,0 +1,74 @@
+{
+  "code": "lammps",
+  "input_file": "in.lammps",
+  "modifiers": [
+    "analysis_rdf_msd"
+  ],
+  "potential": {
+    "artifacts": [
+      {
+        "path": "params.dat",
+        "sha256": "sha256:ffff5555ffff5555ffff5555ffff5555ffff5555ffff5555ffff5555ffff5555"
+      }
+    ],
+    "family": "mace",
+    "pair_coeff": "* * params.dat Pt O H N Na",
+    "pair_style": "mace",
+    "type_elements": [
+      "Pt",
+      "O",
+      "H",
+      "N",
+      "Na"
+    ]
+  },
+  "profiles": [
+    "interface_water"
+  ],
+  "protocol": {
+    "stages": [
+      {
+        "duration_ps": 20,
+        "ensemble": "nvt",
+        "name": "equilibrate",
+        "temperature_K": 300
+      },
+      {
+        "duration_ps": 100,
+        "ensemble": "nvt",
+        "name": "production",
+        "temperature_K": 300
+      }
+    ],
+    "timestep_fs": 1.0
+  },
+  "provenance": {
+    "potential": "user-provided",
+    "protocol": "user-confirmed",
+    "structure": "user-provided",
+    "type_map": "user-confirmed"
+  },
+  "schema_version": 1,
+  "system": {
+    "atom_count": 451,
+    "atom_style": "full",
+    "atom_types": 5,
+    "data_file": "system.data",
+    "data_sha256": "sha256:eeee4444eeee4444eeee4444eeee4444eeee4444eeee4444eeee4444eeee4444",
+    "has_h": true,
+    "periodicity": [
+      "p",
+      "p",
+      "f"
+    ],
+    "type_map": {
+      "1": "Pt",
+      "2": "O",
+      "3": "H",
+      "4": "N",
+      "5": "Na"
+    }
+  },
+  "task": "interface-md",
+  "unresolved": []
+}

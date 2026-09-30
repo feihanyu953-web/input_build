@@ -1,0 +1,96 @@
+# ==============================================================================
+# input_build smoke environment config | scripts/smoke/smoke_env.yaml (template)
+#
+# Copy this file to smoke_env.yaml (gitignored) and point every path at your
+# own machine. 每个 environment 描述"代码二进制 + 数据目录 + 启动方式"，与
+# cases.yaml（平台无关用例）组合后由 run_smoke.py 执行。
+#
+# 字段说明：
+#   shell_prefix    : 执行外壳（list）。Windows + WSL 示例见下方注释；
+#                     留空 [] 则默认 ["bash", "-lc"]（如在 Linux 上直接运行）。
+#   setup           : 进入外壳后首先执行的 shell 片段（module load / source）。
+#   omp_num_threads : 算力纪律 —— cp2k/lammps=1，vasp=2（防止小算例被线程拖死）。
+#   codes           : 各代码二进制绝对路径。
+#   data            : POTCAR 库 / CP2K data / LAMMPS potentials 等显式路径。
+#                     注意 VASP_PP_PATH 环境变量不可靠，必须用显式路径。
+#   launcher        : 每个代码的启动方式。"direct" = 直接运行；
+#                     其他字符串视为模板，{cmd} 会被替换成完整运行命令，
+#                     例如 "mpirun -np 4 {cmd}" 或 "srun --mpi=pmix {cmd}"。
+#   exec.work_root  : runs 目录在"执行侧"看到的路径；runner 与执行同机时留空。
+#   timeout_default : 用例未自带 timeout 时的默认秒数。
+# ==============================================================================
+
+default: local
+
+environments:
+
+  # ---------------------------------------------------------------------------
+  # 单机模板：把 /opt/... 路径替换成你自己的安装位置。首次使用建议
+  #   python run_smoke.py --list
+  #   python run_smoke.py --only al_eam_nve
+  # 先验证环境，再跑全量。
+  # ---------------------------------------------------------------------------
+  local:
+    description: single-machine template; replace every /opt/... path below
+    # Windows + WSL 示例: ["wsl", "-d", "Ubuntu-24.04", "--", "bash", "-lc"]
+    shell_prefix: []
+    setup: "module load vasp/6.5.1 cp2k/2026.1 lammps/22Jul2025"   # 或 source 你自己的环境脚本
+    omp_num_threads:
+      vasp: "2"
+      cp2k: "1"
+      lammps: "1"
+    codes:
+      # VASP 6.5.1 + VTST 4.2 + VASPsol 组合已验证可用
+      vasp_std: /opt/vasp.6.5.1/bin/vasp_std
+      vasp_gam: /opt/vasp.6.5.1/bin/vasp_gam
+      # CP2K 2026.1
+      cp2k: /opt/cp2k-2026.1/build/bin/cp2k.psmp
+      # LAMMPS 22Jul2025（MANYBODY/RIGID/KSPACE/MOLECULE/REAXFF；
+      # 无 REPLICA/PLUMED/ELECTRODE —— 需要那些包的用例不能放这个 env）
+      lammps: /opt/lammps-22Jul2025/src/lmp_mpi
+    data:
+      vasp_potcars: /opt/vasp-potentials/potpaw_PBE.64   # <El>/POTCAR 结构
+      cp2k_data: /opt/cp2k-2026.1/data                   # BASIS_MOLOPT / GTH_POTENTIALS
+      lammps_potentials: /opt/lammps-22Jul2025/potentials
+      # 常见势库没有 Al_u3.eam；Al_jnp.eam 的 Al 内聚能约 -3.36 eV/atom，可作基准
+      al_eam_file: Al_jnp.eam
+    launcher:
+      vasp: direct
+      cp2k: direct
+      lammps: direct
+    exec:
+      work_root: ""                              # 空 = 直接用本地 runs/<case> 路径
+    timeout_default: 1200
+
+  # ---------------------------------------------------------------------------
+  # 超算环境写法示例（复制本块改造）
+  #
+  # 推荐方式：直接把技能仓库同步到集群，在集群上本地运行 runner：
+  #   hpc-example:
+  #     description: 示例集群（在集群登录节点本地运行 runner）
+  #     shell_prefix: ["bash", "-lc"]
+  #     setup: "module load vasp/6.5.1 cp2k/2026.1 lammps/22Jul2025"   # 按实际 module 改
+  #     omp_num_threads: { vasp: "2", cp2k: "1", lammps: "1" }
+  #     codes:
+  #       vasp_std: /path/to/vasp_std
+  #       vasp_gam: /path/to/vasp_gam
+  #       cp2k: /path/to/cp2k.psmp
+  #       lammps: /path/to/lmp_mpi
+  #     data:
+  #       vasp_potcars: /path/to/potpaw_PBE.64
+  #       cp2k_data: /path/to/cp2k/data
+  #       lammps_potentials: /path/to/lammps/potentials
+  #       al_eam_file: Al_jnp.eam
+  #     launcher:
+  #       vasp: "srun -n 16 --mpi=pmix {cmd}"     # srun 启动示例；或 "mpirun -np 16 {cmd}"
+  #       cp2k: "srun -n 8 --mpi=pmix {cmd}"
+  #       lammps: direct
+  #     exec:
+  #       work_root: ""                            # 空 = 直接用本地 runs/<case> 路径
+  #     timeout_default: 1800
+  #
+  # 注意：runner 只在本地（运行 run_smoke.py 的机器上）写输入文件。
+  # 若 shell_prefix 是 ["ssh", "cluster"] 这类远程执行，runs/ 目录必须对远端
+  # 可见（共享盘或提前 rsync），否则远程读不到输入文件 —— 所以集群首推
+  # "在集群上本地跑 runner" 的方式。
+  # ==============================================================================

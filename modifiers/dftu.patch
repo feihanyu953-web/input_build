@@ -1,0 +1,29 @@
+# ==============================================================================
+# DFT+U Modifier
+# Description: Adds on-site Hubbard U correction for correlated transition-metal d/f states
+# Apply when: System contains strongly correlated elements (e.g., Fe, Co, Ni, Cu, Mn, Ce, U)
+# ==============================================================================
+
+# Charge-density mixing must include the correlated orbital angular momentum.
+# Use LMAXMIX=4 for d-electron systems; LMAXMIX=6 for f-electron systems.
+LMAXMIX  = 6                         # f-electron systems (Ce, U, rare earths)
+# LMAXMIX = 4                        # Use instead for d-electron transition metals
+
+LDAU     = .TRUE.   # Switch on DFT+U
+LDAUTYPE = 2        # 2 = Dudarev (simplified rotationally invariant), most common
+                    # 1 = Liechtenstein (full rotationally invariant)
+
+# Orbital-dependent U and J values (as comments with examples):
+# LDAUL  =  2 -1     # L value for each element type (2 = d, 3 = f, -1 = none)
+# LDAUU  =  4.0 0.0  # Hubbard U (eV) for each element type
+# LDAUJ  =  0.0 0.0  # Exchange J (eV) for each element type
+#
+# Example for CeO2 (Ce 4f, O none):
+#   LDAUL  =  3 -1
+#   LDAUU  =  5.0 0.0
+#   LDAUJ  =  0.0 0.0
+#
+# Example for Fe2O3 (Fe 3d, O none):
+#   LDAUL  =  2 -1
+#   LDAUU  =  4.3 0.0
+#   LDAUJ  =  0.0 0.0

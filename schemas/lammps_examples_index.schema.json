@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lammps_examples_index.schema.json",
+  "title": "input_build LAMMPS official examples index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "code", "kind", "generated_from", "entries"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "code": {"const": "lammps"},
+    "kind": {"const": "official_examples_index"},
+    "generated_from": {"$ref": "#/$defs/generatedFrom"},
+    "entries": {"type": "array", "items": {"$ref": "#/$defs/entry"}}
+  },
+  "$defs": {
+    "nonEmptyString": {"type": "string", "minLength": 1},
+    "sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "isoDate": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+    "allowedRepository": {"enum": ["https://github.com/lammps/lammps"]},
+    "sortedUniqueStrings": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/nonEmptyString"}
+    },
+    "nullableNonEmpty": {"type": ["string", "null"], "minLength": 1},
+    "generatedFrom": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository", "commit", "release", "source_dir", "retrieval_date",
+        "builder", "builder_sha256", "schema", "schema_sha256"
+      ],
+      "properties": {
+        "repository": {"$ref": "#/$defs/allowedRepository"},
+        "commit": {"$ref": "#/$defs/nullableNonEmpty"},
+        "release": {"$ref": "#/$defs/nullableNonEmpty"},
+        "source_dir": {"$ref": "#/$defs/nonEmptyString"},
+        "retrieval_date": {"$ref": "#/$defs/isoDate"},
+        "builder": {"$ref": "#/$defs/nonEmptyString"},
+        "builder_sha256": {"$ref": "#/$defs/sha256"},
+        "schema": {"$ref": "#/$defs/nonEmptyString"},
+        "schema_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "upstream_repository", "upstream_commit", "upstream_release",
+        "upstream_path", "canonical_source_url", "retrieval_date", "sha256",
+        "commands", "styles", "packages", "tags", "local_example"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^lammps_examples_[a-z0-9_]+$",
+          "minLength": 1
+        },
+        "upstream_repository": {"$ref": "#/$defs/allowedRepository"},
+        "upstream_commit": {"$ref": "#/$defs/nullableNonEmpty"},
+        "upstream_release": {"$ref": "#/$defs/nullableNonEmpty"},
+        "upstream_path": {"$ref": "#/$defs/nonEmptyString"},
+        "canonical_source_url": {
+          "type": "string",
+          "pattern": "^https://github\\.com/lammps/lammps/blob/.+$"
+        },
+        "retrieval_date": {"$ref": "#/$defs/isoDate"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "commands": {"$ref": "#/$defs/sortedUniqueStrings"},
+        "styles": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/sortedUniqueStrings"}
+        },
+        "packages": {"$ref": "#/$defs/sortedUniqueStrings"},
+        "tags": {"$ref": "#/$defs/sortedUniqueStrings"},
+        "local_example": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

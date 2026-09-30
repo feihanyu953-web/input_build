@@ -1,0 +1,23 @@
+# ==============================================================================
+# Analysis Snippet: RDF + MSD (compute rdf / compute msd + fix ave/time)
+# Apply when: production MD where radial distribution functions or diffusion
+#             coefficients are needed (liquid structure, transport)
+# ==============================================================================
+# USAGE:
+# - compute rdf <Nbins> itype jtype ...: type pairs refer to DATA-FILE type IDs.
+# - fix ave/time Nevery Nrepeat Nfreq ... mode vector: writes time-averaged arrays.
+# - Also available (not shown): compute coord/atom (coordination numbers) and
+#   compute orientorder/atom (Q6 bond-orientational order parameter).
+
+# --- RDF (e.g. O-O, O-H in water: types 1=O, 2=H) ---
+# >>> USER: adjust Nbins and the type pairs to your data file <<<
+compute         rdf1 all rdf 200 1 1 1 2 2 2
+fix             frdf all ave/time 100 10 1000 c_rdf1[*] file rdf.dat mode vector
+
+# --- MSD (mean-squared displacement; slope -> diffusion coefficient) ---
+compute         msd1 all msd
+fix             fmsd all ave/time 100 10 1000 c_msd1[*] file msd.dat mode vector
+
+# --- Per-atom structure probes (dump as custom attributes if needed) ---
+# compute         coord all coord/atom cutoff 3.5
+# compute         q6 all orientorder/atom degrees 6

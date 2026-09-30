@@ -1,0 +1,53 @@
+# ==============================================================================
+# VASP INCAR | Band Structure (Non-SCF with high-density k-path)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = VASP Band Structure        # Human-readable job title
+PREC     = Accurate                   # Accurate for smooth bands
+ENCUT    = 400                        # Plane-wave cutoff (eV); >= max ENMAX in POTCAR
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal                     # Normal Davidson/RMM-DIIS mixer
+EDIFF    = 1E-6                       # Tight SCF convergence for accurate eigenvalues
+ISMEAR   = 0                          # Gaussian smearing (safe for band structure)
+SIGMA    = 0.05                       # Small smearing for sharp band edges
+ISTART   = 1                          # Read WAVECAR from prior static SCF
+ICHARG   = 11                         # Non-selfconsistent run using read-in CHGCAR
+NELM     = 100                        # Max SCF steps; non-SCF usually converges in <10
+
+# ------------------------------------------------------------------------------
+# III. BAND STRUCTURE SETTINGS
+# ------------------------------------------------------------------------------
+LORBIT   = 11                         # Write lm-decomposed DOS (needed for fat bands)
+ISYM     = 0                          # Disable symmetry; k-path breaks point-group sym
+
+# NBANDS boost (optional but recommended):
+# Set NBANDS to ~1.3× default to capture empty states above Fermi level
+# Query default NBANDS from OUTCAR of prior SCF, then add 30%
+# NBANDS   = 384                        # Example: increase from 296 to 384
+
+# ------------------------------------------------------------------------------
+# IV. ACCURACY
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.                     # Finer FFT grid for accurate potential
+LASPH    = .TRUE.                     # Non-spherical contributions in PAW
+
+# ------------------------------------------------------------------------------
+# V. OUTPUT
+# ------------------------------------------------------------------------------
+LCHARG   = .FALSE.                    # Do not overwrite CHGCAR
+LWAVE    = .FALSE.                    # Do not overwrite WAVECAR
+
+# ------------------------------------------------------------------------------
+# VI. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 4                          # Orbitals per core; tune for your queue / node
+# NPAR   = 4                          # Bands parallelized over NPAR groups
+# KPAR   = 1                          # k-point parallelization; band calc usually 1 kpt
+
+# END OF INCAR

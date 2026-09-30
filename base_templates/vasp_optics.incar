@@ -1,0 +1,83 @@
+# ==============================================================================
+# VASP INCAR | Optical Properties / Frequency-Dependent Dielectric Function
+# Source: VASP Wiki LOPTICS (https://www.vasp.at/wiki/LOPTICS),
+#         modifiers/optics.patch, examples/13_Si_optics/INCAR
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = VASP Optics                  # Human-readable job title
+PREC     = Accurate                     # Accurate for smooth eigenvalues
+ENCUT    = 400                          # Plane-wave cutoff (eV); >= max ENMAX
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal                       # Normal Davidson/RMM-DIIS mixer
+EDIFF    = 1E-6                         # Tight SCF convergence
+ISMEAR   = 0                            # Gaussian smearing
+SIGMA    = 0.05                         # Small smearing for sharp spectra
+ISTART   = 1                            # Read WAVECAR from prior SCF
+ICHARG   = 11                           # Non-SCF using read-in CHGCAR
+NELM     = 100                          # Max SCF steps; NSCF usually fast
+
+# ------------------------------------------------------------------------------
+# III. OPTICS SETTINGS
+# ------------------------------------------------------------------------------
+LOPTICS  = .TRUE.                       # Frequency-dependent dielectric matrix
+                                        # Source: https://www.vasp.at/wiki/LOPTICS
+
+# Complex shift (Lorentzian broadening). Typical range 0.05 – 0.3 eV.
+# Smaller = sharper peaks but needs denser k-sampling.
+CSHIFT   = 0.1                          # Broadening (eV); typical starting value
+
+NEDOS    = 2000                         # Fine energy grid for smooth spectra
+                                        # Source: VASP Wiki LOPTICS / local Si_optics
+
+# Empty bands: LOPTICS needs many unoccupied states; high-energy transitions are
+# truncated otherwise (vasp.at/wiki/LOPTICS). Use ~2-3x the default NBANDS of the
+# prior SCF run (query it from that run's OUTCAR, line "NBANDS=").
+# Example: if default NBANDS = 128, set NBANDS = 384.
+NBANDS   = 384                          # ~3x default NBANDS of the prior SCF run;
+                                        # adjust to YOUR system and converge vs spectra
+
+# ------------------------------------------------------------------------------
+# IV. ACCURACY
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.                       # Finer FFT grid for accurate potential
+LASPH    = .TRUE.                       # Non-spherical contributions in PAW
+LREAL    = .FALSE.                      # Reciprocal-space projection (accurate)
+
+# ------------------------------------------------------------------------------
+# V. OUTPUT
+# ------------------------------------------------------------------------------
+LCHARG   = .FALSE.                      # Do not overwrite CHGCAR
+LWAVE    = .FALSE.                      # Do not overwrite WAVECAR
+
+# ------------------------------------------------------------------------------
+# VI. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 4                            # Orbitals per core; tune for your queue
+# NPAR   = 4                            # Bands parallelized over NPAR groups
+# KPAR   = 1                            # k-point parallelization
+
+# END OF INCAR
+
+# ==============================================================================
+# POST-PROCESSING INSTRUCTIONS
+# ==============================================================================
+# Optical dielectric tensor is written to OUTCAR (search for "FREQUENCIES").
+# Real and imaginary parts can be extracted with:
+#   $ grep -A 20 "FREQUENCIES" OUTCAR
+#
+# Or use VASPKIT: option 71 (Optical properties) / 712 (Absorption coefficient)
+#
+# Convergence checks:
+#   - Increase NBANDS until spectra stop changing.
+#   - Increase k-point density (LOPTICS is very sensitive to k-sampling).
+#   - Reduce CSHIFT only after k-sampling is converged.
+#
+# Note: Tetrahedron method (ISMEAR=-5) for LOPTICS is supported only in VASP ≥ 6.3.
+#       ISMEAR=-2 with LOPTICS is not supported.
+# ==============================================================================

@@ -1,0 +1,44 @@
+# ==============================================================================
+# VASP INCAR | TiO2 Anatase Static Dielectric Tensor
+# Sources: VASP Wiki LEPSILON
+#          https://www.vasp.at/wiki/index.php/LEPSILON
+#          VASP SiC dielectric tutorial
+#          https://www.vasp.at/wiki/index.php/Dielectric_properties_of_SiC
+# ==============================================================================
+
+SYSTEM   = TiO2_anatase_dielectric
+PREC     = Accurate
+ENCUT    = 520
+
+ALGO     = Normal
+EDIFF    = 1E-8
+ISMEAR   = 0
+SIGMA    = 0.05
+ISTART   = 1
+ICHARG   = 1
+NELM     = 100
+NELMIN   = 6
+
+LEPSILON = .TRUE.
+
+# Optional ionic contribution:
+# IBRION = 8
+# LPEAD  = .TRUE.
+# NSW    = 1
+
+ADDGRID  = .TRUE.
+LASPH    = .TRUE.
+LREAL    = .FALSE.
+
+LCHARG   = .TRUE.
+LWAVE    = .TRUE.
+
+# Optional Ti 3d DFT+U (uncomment if needed):
+# LDAU     = .TRUE.
+# LDAUTYPE = 2
+# LDAUL    = 2 -1
+# LDAUU    = 3.5 0.0
+# LDAUJ    = 0.0 0.0
+# LMAXMIX  = 4
+
+# END OF INCAR

@@ -1,0 +1,12 @@
+# ==============================================================================
+# van der Waals (DFT-D3 BJ) Modifier
+# Description: Adds Grimme DFT-D3 dispersion correction with Becke-Johnson damping
+# Apply when: System involves weak interactions, physisorption, layered materials,
+#             or organic adsorbates on surfaces
+# ==============================================================================
+
+IVDW = 12           # Grimme DFT-D3 with Becke-Johnson (BJ) damping (recommended)
+                    # IVDW = 10 : DFT-D2 (older, less recommended; same as IVDW = 1)
+                    # IVDW = 11 : DFT-D3 with zero damping
+                    # IVDW = 12 : DFT-D3 with BJ damping (recommended)
+                    # IVDW = 4  : dDsC (only if explicitly needed)

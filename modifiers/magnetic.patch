@@ -1,0 +1,29 @@
+# ==============================================================================
+# Magnetic Modifier
+# Description: Enables spin-polarized calculation for magnetic systems
+# Apply when: System contains transition metals (Fe/Co/Ni/Mn/Cr), rare earths (Ce/U/La),
+#             or adsorbates with unpaired electrons (radicals)
+# ==============================================================================
+
+ISPIN = 2           # Spin-polarized calculation (1 = non-spin-polarized)
+
+# MAGMOM auto-setting logic (as comment for reference):
+# - ferromagnetic (FM):  all atoms get positive initial moment
+# - antiferromagnetic (AFM): alternating signs on symmetry-equivalent sites
+# - default heuristic: ferromagnetic initialization is usually safest
+#
+# Example for a 4-atom cell with Fe:
+#   MAGMOM = 4*2.5     # 4 atoms, 2.5 mu_B each
+#
+# Example for AFM on two Fe sites:
+#   MAGMOM = 2.5 -2.5  # Opposite initial moments
+#
+# Example for CeO2 surface with two reduced Ce3+ sites (4f moments on Ce only):
+#   MAGMOM = 25*0 2*1.0 54*0   # POSCAR order Ce(27) O(54); Ce3+ get +1.0 mu_B,
+#                              # NOT zero — an all-zero "FM initialization" gives VASP
+#                              # no symmetry breaking and usually collapses to a
+#                              # non-magnetic solution. Flip the two signs for AFM tests.
+#
+# RULE: MAGMOM must reflect the TARGET magnetic ordering (FM/AFM/ferrimagnetic),
+# with nonzero initial moments on the magnetic sites (vasp.at/wiki/MAGMOM).
+# Ask the user for the magnetic ordering before generating; never guess all-zero.

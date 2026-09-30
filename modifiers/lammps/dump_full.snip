@@ -1,0 +1,13 @@
+# ==============================================================================
+# Output Snippet: Full Trajectory Dump (positions + velocities + forces)
+# Apply when: MLFF active learning, error estimation, or any workflow that needs
+#             velocities/forces in addition to coordinates
+# ==============================================================================
+# USAGE:
+# - Larger files than a plain xyz dump; choose N (dump stride) accordingly.
+# - dump_modify sort id keeps atom order stable across frames (needed for MSD etc.).
+# - Common extras: `dump_modify <id> append yes` (continue a run), `format line`
+#   or `format native` for text formats, `units yes` to tag units in the file.
+
+dump            1 all custom 100 traj_full.lammpstrj id type x y z vx vy vz fx fy fz
+dump_modify     1 sort id

@@ -1,0 +1,62 @@
+# ==============================================================================
+# VASP INCAR | CeO2 Bulk Geometry Optimization + DFT+U
+# ==============================================================================
+# Auto-detected: Cubic fluorite, 12 atoms, oxide, correlated (Ce 4f), non-magnetic
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = CeO2 Bulk Relax + DFT+U
+PREC     = Normal
+ENCUT    = 400
+ISPIN    = 1                        # Non-magnetic
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal
+EDIFF    = 1E-6
+ISMEAR   = 0                        # Gaussian smearing for oxides
+SIGMA    = 0.1                      # Smearing width (eV)
+NELMIN   = 6
+NELM     = 100                      # DFT+U may need more iterations
+
+# ------------------------------------------------------------------------------
+# III. GEOMETRY OPTIMIZATION
+# ------------------------------------------------------------------------------
+IBRION   = 2                        # Conjugate-gradient
+ISIF     = 3                        # Relax ions + cell shape + volume (bulk)
+NSW      = 100
+EDIFFG   = -0.03                    # Force convergence (eV/A)
+POTIM    = 0.2                        # Conservative CG step for oxide / DFT+U
+
+# ------------------------------------------------------------------------------
+# IV. ACCURACY ENHANCEMENTS
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.
+LASPH    = .TRUE.
+LMAXMIX  = 6                        # Required for f-electron DFT+U (Ce 4f)
+LREAL    = .FALSE.                  # Reciprocal-space (small cell: 12 atoms)
+
+# ------------------------------------------------------------------------------
+# V. SYMMETRY
+# ------------------------------------------------------------------------------
+ISYM     = 2                        # Keep symmetry for bulk (safe for fluorite)
+
+# ------------------------------------------------------------------------------
+# VI. DFT+U SETTINGS (Ce 4f)
+# ------------------------------------------------------------------------------
+LDAU     = .TRUE.
+LDAUTYPE = 2                        # Dudarev (simplified)
+LDAUL    = 3 -1                     # Ce = f (3), O = none (-1)
+LDAUU    = 5.0 0.0                  # U(Ce) = 5.0 eV, U(O) = 0.0 eV
+LDAUJ    = 0.0 0.0                  # J(Ce) = 0.0 eV, J(O) = 0.0 eV
+
+# ------------------------------------------------------------------------------
+# VII. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 4
+# NPAR   = 4
+# KPAR   = 1
+
+# END OF INCAR

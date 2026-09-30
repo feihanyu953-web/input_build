@@ -1,0 +1,19 @@
+# ==============================================================================
+# Confining Wall Snippet (fix wall/lj93) — liquid/solid interface restraint
+# Apply when: liquid electrolyte in a slab cell must be kept away from the cell
+#             boundary (e.g. between two electrodes), WITHOUT opening a vacuum gap
+# ==============================================================================
+# USAGE:
+# - zlo/zhi EDGE: the wall position (box coordinate, A with units metal).
+# - epsilon sigma cutoff: 9-3 Lennard-Jones wall parameters; typical starting
+#   values epsilon ~ 0.1-1.0 eV (units metal), sigma ~ 2.5-3.5 A — please adjust
+#   to your system.
+# - Difference vs. vacuum: a wall is a SOFT potential (no boundary change, keeps
+#   p p p periodicity + kspace); a vacuum gap uses boundary p p f and breaks
+#   long-range Coulombics unless kspace_modify slab is set.
+# - ORDER: define walls BEFORE fix shake if both are used (shake must come last).
+
+# >>> USER: set EDGE to your box z-extents and tune epsilon/sigma <<<
+fix             wall_lo all wall/lj93 zlo 1.0 0.5 3.0 2.5
+fix             wall_hi all wall/lj93 zhi 39.0 0.5 3.0 2.5
+#                                  EDGE  epsilon sigma cutoff

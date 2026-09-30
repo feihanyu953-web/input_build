@@ -1,0 +1,58 @@
+# ==============================================================================
+# VASP INCAR | Pt(100) Surface Relaxation with Dipole Correction
+# ==============================================================================
+# Auto-detected: Tetragonal slab, 109 atoms, asymmetric, metal, non-magnetic
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = Pt100 Surface Relax + Dipole
+PREC     = Normal
+ENCUT    = 400
+ISPIN    = 1                          # Non-magnetic (no Fe/Co/Ni/Mn/Cr)
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal
+EDIFF    = 1E-6
+ISMEAR   = 0                          # Gaussian smearing
+SIGMA    = 0.1                        # Smearing width for metals
+NELMIN   = 6
+NELM     = 100
+
+# ------------------------------------------------------------------------------
+# III. GEOMETRY OPTIMIZATION
+# ------------------------------------------------------------------------------
+IBRION   = 2                        # Conjugate-gradient
+ISIF     = 2                        # Relax ions only (slab)
+NSW      = 200                      # Max ionic steps (increased for large slab)
+EDIFFG   = -0.03                    # Force convergence (eV/A)
+POTIM    = 0.3                      # H-containing slab + IBRION=2: cap at 0.3 (SKILL.md validation rule)
+
+# ------------------------------------------------------------------------------
+# IV. ACCURACY ENHANCEMENTS
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.
+LASPH    = .TRUE.
+LREAL    = Auto                     # Real-space projection (>100 atoms)
+
+# ------------------------------------------------------------------------------
+# V. SYMMETRY
+# ------------------------------------------------------------------------------
+ISYM     = 0                        # Disable symmetry (asymmetric slab)
+
+# ------------------------------------------------------------------------------
+# VI. DIPOLE CORRECTION (asymmetric slab with vacuum)
+# ------------------------------------------------------------------------------
+IDIPOL   = 3                        # Dipole correction along z
+LDIPOL   = .TRUE.                   # Activate dipole correction
+
+# ------------------------------------------------------------------------------
+# VII. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 4
+# NPAR   = 4
+# KPAR   = 1
+
+# END OF INCAR

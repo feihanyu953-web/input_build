@@ -1,0 +1,159 @@
+# ==============================================================================
+# CP2K Input | Geometry Optimization (BFGS)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+&GLOBAL
+  PROJECT     cp2k_geo_opt            # Job name (prefix for output files)
+  RUN_TYPE    GEO_OPT                 # Geometry optimization
+  PRINT_LEVEL LOW                     # LOW / MEDIUM / HIGH
+&END GLOBAL
+
+# ------------------------------------------------------------------------------
+# II. FORCE EVALUATION
+# ------------------------------------------------------------------------------
+&FORCE_EVAL
+  METHOD Quickstep                    # DFT using Gaussian-plane waves (GPW)
+
+  # ---------------------------------------------------------------------------
+  # IIa. DFT SETTINGS
+  # ---------------------------------------------------------------------------
+  &DFT
+    # >>> USER: set path to basis set and potential files <<<
+    BASIS_SET_FILE_NAME  ./BASIS_MOLOPT
+    POTENTIAL_FILE_NAME  ./GTH_POTENTIALS
+
+    # --- QUICKSTEP defaults ---
+    &QS
+      EPS_DEFAULT 1.0E-12             # Default filter threshold for GPW
+      METHOD      GPW                 # Gaussian Plane Wave method
+    &END QS
+
+    # --- Multi-grid for Gaussian representation ---
+    &MGRID
+      CUTOFF      400                 # Plane-wave cutoff of finest grid (Ry)
+                                      # Controls the auxiliary real-space grid for density/
+                                      # potential; NOT convertible to VASP ENCUT (orbitals use
+                                      # Gaussian basis) - converge CUTOFF/REL_CUTOFF per system
+      REL_CUTOFF  50                  # Grid spacing under Gaussians (Ry)
+      NGRIDS      4                   # Number of multi-grid levels
+    &END MGRID
+
+    # --- Exchange-correlation functional ---
+    &XC
+      &XC_FUNCTIONAL PBE
+      &END XC_FUNCTIONAL
+      # For DFT-D3 dispersion: add &VDW_POTENTIAL section
+    &END XC
+
+    # --- SCF convergence ---
+    &SCF
+      SCF_GUESS   ATOMIC              # Start from atomic densities
+      EPS_SCF     1.0E-6              # SCF energy convergence (comparable to VASP EDIFF)
+      MAX_SCF     300                 # Max SCF iterations (comparable to VASP NELM)
+
+      &DIAGONALIZATION
+        ALGORITHM STANDARD
+      &END DIAGONALIZATION
+
+      &MIXING
+        METHOD   BROYDEN_MIXING       # Broyden charge mixing (comparable to VASP IMIX=4)
+        ALPHA    0.4                  # Linear mixing parameter (comparable to VASP AMIX)
+        NBROYDEN 8                    # Broyden history buffer
+      &END MIXING
+
+      # For metallic systems or small-gap systems, add smearing:
+      # &SMEAR
+      #   METHOD FERMI_DIRAC
+      #   ELECTRONIC_TEMPERATURE [K] 300
+      # &END SMEAR
+      # ADDED_MOS 10                  # Extra empty bands for smearing.
+                                      # NOTE: ADDED_MOS is a keyword of &SCF,
+                                      # not a section (no '&'). CP2K manual:
+                                      # FORCE_EVAL/DFT/SCF.
+    &END SCF
+
+    # --- Poisson solver (periodicity) ---
+    # Periodicity is an ATOMIC config block: dimension, &CELL PERIODIC,
+    # &POISSON PERIODIC and POISSON_SOLVER must be chosen together:
+    #   3D bulk   : CELL PERIODIC XYZ  + POISSON PERIODIC XYZ  (default PERIODIC solver)
+    #   2D slab   : CELL PERIODIC XYZ  + POISSON PERIODIC XY + POISSON_SOLVER ANALYTIC
+    #               (or keep POISSON PERIODIC XYZ with a large vacuum = 3D-periodic
+    #                approximation of the slab)
+    #   0D molecule: CELL PERIODIC NONE + POISSON PERIODIC NONE
+    #               + POISSON_SOLVER ANALYTIC (MT / WAVELET also support 0D)
+    # The default PERIODIC solver is ONLY valid for fully 3D-periodic systems.
+    # Source: CP2K manual FORCE_EVAL/DFT/POISSON
+    &POISSON
+      PERIODIC XYZ                    # XYZ = 3D periodic; XY = slab; NONE = molecule
+    &END POISSON
+
+  &END DFT
+
+  # ---------------------------------------------------------------------------
+  # IIb. SYSTEM DESCRIPTION (REQUIRED: adapt to your system)
+  # ---------------------------------------------------------------------------
+  &SUBSYS
+    &CELL
+      # >>> USER: replace with your lattice parameters <<<
+      ABC     10.0 10.0 10.0          # Cell vectors lengths (Å)
+      ALPHA_BETA_GAMMA 90.0 90.0 90.0 # Angles (degrees)
+      PERIODIC XYZ                    # Match &POISSON periodicity
+    &END CELL
+
+    # >>> USER: add one &KIND block per element type <<<
+    &KIND H
+      BASIS_SET DZVP-MOLOPT-SR-GTH
+      POTENTIAL GTH-PBE
+    &END KIND
+
+    &KIND O
+      BASIS_SET DZVP-MOLOPT-SR-GTH
+      POTENTIAL GTH-PBE
+    &END KIND
+
+    &TOPOLOGY
+      COORD_FILE_NAME    ./coord.xyz   # NOTE: replace with your structure file
+      COORD_FILE_FORMAT  XYZ
+    &END TOPOLOGY
+  &END SUBSYS
+
+  # --- Output control ---
+  # &FORCES belongs to FORCE_EVAL/PRINT — under DFT/PRINT CP2K aborts with
+  # "unknown subsection FORCES of section PRINT" (2026.1 runtime-verified).
+  &PRINT
+    &FORCES ON
+    &END FORCES
+  &END PRINT
+
+&END FORCE_EVAL
+
+# ------------------------------------------------------------------------------
+# III. GEOMETRY OPTIMIZATION
+# ------------------------------------------------------------------------------
+&MOTION
+  &GEO_OPT
+    TYPE         MINIMIZATION          # MINIMIZATION or TRANSITION_STATE
+    OPTIMIZER    BFGS                  # BFGS (fast, default) / CG (robust) / LBFGS
+    MAX_ITER     200                   # Max geometry steps (comparable to VASP NSW)
+    MAX_DR       3.0E-3                # Max displacement threshold (bohr)
+    RMS_DR       1.5E-3                # RMS displacement threshold (bohr)
+    MAX_FORCE    4.5E-4                # Max force threshold (Hartree/bohr)
+                                       # ≈ 0.023 eV/Å (compare: VASP EDIFFG = -0.03)
+    RMS_FORCE    3.0E-4                # RMS force threshold (Hartree/bohr)
+  &END GEO_OPT
+
+  # --- Optional: fix atoms during optimization ---
+  # &CONSTRAINT
+  #   &FIXED_ATOMS
+  #     COMPONENTS_TO_FIX XYZ
+  #     LIST 1..10                     # Fix atoms 1 through 10
+  #   &END FIXED_ATOMS
+  # &END CONSTRAINT
+&END MOTION
+
+# ==============================================================================
+# END OF INPUT
+# ==============================================================================

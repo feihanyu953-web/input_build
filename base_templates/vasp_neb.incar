@@ -1,0 +1,63 @@
+# ==============================================================================
+# VASP INCAR | NEB Transition-State Search (stock NEB or VTST CI-NEB)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = VASP NEB                   # Human-readable job title
+PREC     = Normal                     # Normal precision; ENCUT manually controlled
+ENCUT    = 400                        # Plane-wave cutoff (eV); >= max ENMAX in POTCAR
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal                     # Normal Davidson/RMM-DIIS mixer
+EDIFF    = 1E-5                       # SCF energy convergence (eV)
+ISMEAR   = 0                          # Gaussian smearing
+SIGMA    = 0.1                        # Smearing width (eV)
+NELMIN   = 6                          # Min SCF steps before assessing convergence
+NELM     = 100                        # Max SCF steps
+
+# ------------------------------------------------------------------------------
+# III. NEB SETTINGS
+# ------------------------------------------------------------------------------
+IMAGES   = 5                          # Number of intermediate images between endpoints
+SPRING   = -5.0                       # Spring constant (eV/A^2); negative = NEB w/ improved tangent
+# ------------------------------------------------------------------------------
+# *** LCLIMB IS A VTST EXTENSION TAG — stock VASP does NOT recognize it ***
+# (vasp.at/wiki/SPRING; VTST: theory.cm.utexas.edu/vtsttools). Two usages:
+#   (a) VTST-patched VASP  -> keep LCLIMB = .TRUE. for climbing-image NEB (CI-NEB):
+#       the highest-energy image climbs to the saddle point.
+#   (b) stock VASP build   -> DELETE the LCLIMB line below; the run is then a plain
+#       NEB (no climbing image). With stock VASP the tag is unknown and the job
+#       will NOT behave as CI-NEB.
+# ------------------------------------------------------------------------------
+LCLIMB   = .TRUE.                     # VTST only! Climbing image -> TS. Delete for stock NEB.
+IBRION   = 1                          # Quasi-Newton / RMM-DIIS for ionic relax (NEB)
+ISIF     = 2                          # Relax ions only; fix cell shape / volume
+NSW      = 200                        # Max ionic steps for full NEB path convergence
+EDIFFG   = -0.03                      # Force convergence (eV/A); negative = use forces
+
+# ------------------------------------------------------------------------------
+# IV. ACCURACY
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.                     # Finer FFT grid for accurate forces
+LASPH    = .TRUE.                     # Non-spherical contributions in PAW
+ISYM     = 0                          # Disable symmetry; NEB paths often break it
+
+# ------------------------------------------------------------------------------
+# V. OUTPUT (written once at run end, per image directory)
+# ------------------------------------------------------------------------------
+LWAVE    = .FALSE.                    # x IMAGES directories; WAVECAR would multiply
+LCHARG   = .FALSE.                    # GB-scale writes - the path energies/forces
+                                      # in OUTCAR are the deliverable
+
+# ------------------------------------------------------------------------------
+# VI. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 4                          # Orbitals per core; tune for your queue / node
+# NPAR   = 4                          # Bands parallelized over NPAR groups
+# KPAR   = 1                          # K-point parallelization; >1 only if multiple kpts
+
+# END OF INCAR

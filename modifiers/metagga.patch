@@ -1,0 +1,18 @@
+# ==============================================================================
+# meta-GGA Modifier (r2SCAN recommended)
+# Description: meta-GGA exchange-correlation upgrade over PBE
+# Apply when: higher-accuracy energetics/structures (surface energies, water,
+#             polymorph ordering) without hybrid-functional cost
+# ==============================================================================
+# NOTES:
+# - r2SCAN is the recommended default (better numerical stability than SCAN);
+#   METAGGA = SCAN is the alternative (commented below).
+# - Requires VASP >= 6.2.0 (native support); VASP 5.4.4 needs patch 4.
+# - LASPH = .TRUE. is MANDATORY for meta-GGA (VASP wiki strongly recommends it;
+#   validator raises ERROR without it).
+# - ADDGRID = .TRUE. recommended for accurate forces (validator warns if absent).
+
+METAGGA  = R2SCAN      # regularized-restored SCAN (recommended)
+# METAGGA = SCAN       # original SCAN — alternative
+LASPH    = .TRUE.      # non-spherical PAW contributions — mandatory for meta-GGA
+ADDGRID  = .TRUE.      # finer FFT grid for forces

@@ -1,0 +1,72 @@
+# ==============================================================================
+# VASP INCAR | Static SCF (Single-Point Energy) — Magnetic System
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = Fe3O4 Magnetic SCF           # Magnetite inverse spinel ferrimagnetic
+PREC     = Normal                       # Normal precision; ENCUT manually controlled
+ENCUT    = 400                          # Plane-wave cutoff (eV); >= max ENMAX in POTCAR
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal                       # Normal Davidson/RMM-DIIS mixer
+EDIFF    = 1E-6                         # Tighter SCF convergence for static runs
+ISMEAR   = -5                           # Tetrahedron method with Blochl correction
+                                        # (dense 4x4x4 mesh suitable for tetrahedron)
+SIGMA    = 0.05                         # Smearing width (eV); small value since tetrahedron is exact
+ISTART   = 0                            # Start from scratch (no WAVECAR)
+ICHARG   = 2                            # Superposition of atomic charge densities
+NELMIN   = 6                            # Min SCF steps before assessing convergence
+NELM     = 100                          # Max SCF steps
+
+# ------------------------------------------------------------------------------
+# III. MAGNETISM
+# ------------------------------------------------------------------------------
+ISPIN    = 2                            # Spin-polarized calculation (magnetic oxide)
+
+# MAGMOM setup for ferrimagnetic Fe3O4 (inverse spinel), POSCAR order Fe(24) O(32):
+#   - 8  tetrahedral (A-site) Fe3+ : ~ +5.0 mu_B
+#   - 16 octahedral (B-site) Fe2+/Fe3+ : ~ -5.0 mu_B (antiparallel to A-site)
+#   - 32 O2- : 0.0 mu_B
+# The net moment comes from B-site Fe2+; A/B antiparallel coupling is the magnetic
+# ground state, so the initial moments MUST be given with opposite signs — VASP's
+# default same-sign guess converges to the wrong (ferromagnetic) ordering.
+# NOTE: the sign pattern below assumes the first 8 Fe in POSCAR are A-sites;
+# verify the actual site ordering of your structure and adjust accordingly.
+MAGMOM   = 8*5.0 16*-5.0 32*0.0       # Ferrimagnetic init: A-sites up, B-sites down
+
+# ------------------------------------------------------------------------------
+# IV. ACCURACY
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.                       # Finer FFT grid for accurate PAW potentials
+LASPH    = .TRUE.                       # Non-spherical contributions in PAW
+LMAXMIX  = 4                            # Required for Fe 3d DFT+U
+LREAL    = .FALSE.                      # Reciprocal-space projection (accurate for static)
+
+# ------------------------------------------------------------------------------
+# V. DFT+U SETTINGS (Fe 3d)
+# ------------------------------------------------------------------------------
+LDAU     = .TRUE.
+LDAUTYPE = 2                            # Dudarev
+LDAUL    = 2 -1                         # Fe = d, O = none
+LDAUU    = 4.3 0.0                      # U(Fe) = 4.3 eV (literature range)
+LDAUJ    = 0.0 0.0
+
+# ------------------------------------------------------------------------------
+# VI. OUTPUT
+# ------------------------------------------------------------------------------
+LCHARG   = .TRUE.                       # Write CHGCAR for restart / DOS / post-processing
+LWAVE    = .TRUE.                       # Write WAVECAR for restart / NEB / band structure
+LVTOT    = .FALSE.                      # Do not write LOCPOT by default (save disk)
+
+# ------------------------------------------------------------------------------
+# VII. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 4                            # Orbitals per core; tune for your queue / node
+# NPAR   = 4                            # Bands parallelized over NPAR groups
+# KPAR   = 1                            # K-point parallelization; >1 only if multiple kpts
+
+# END OF INCAR

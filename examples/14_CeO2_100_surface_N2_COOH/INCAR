@@ -1,0 +1,87 @@
+# ==============================================================================
+# VASP INCAR | CeO2(100) Surface Relaxation + N2 + COOH + DFT+U
+# ==============================================================================
+# Auto-detected: Oxide surface, Ce 4f correlated, asymmetric slab, DFT+U active
+# Pressure-test case: validates oxide/DFT+U branch of input_build
+# ==============================================================================
+
+# -----------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# -----------------------------------------------------------------------------
+SYSTEM   = CeO2_100_N2_COOH_relax_DFTU
+PREC     = Normal
+ENCUT    = 400                        # Minimum; use 520+ for final energies
+ISTART   = 0
+ICHARG   = 2
+ISPIN    = 1                          # Ask user: Ce3+/surface states -> ISPIN=2
+
+# -----------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# -----------------------------------------------------------------------------
+ALGO     = Normal
+EDIFF    = 1E-6
+ISMEAR   = 0                          # Gaussian for oxides
+SIGMA    = 0.05                       # Small sigma for gap systems
+NELMIN   = 6
+NELM     = 100                        # DFT+U surface needs more SCF steps
+
+# -----------------------------------------------------------------------------
+# III. GEOMETRY OPTIMIZATION
+# -----------------------------------------------------------------------------
+IBRION   = 2                          # Conjugate-gradient
+ISIF     = 2                          # Relax ions only (slab)
+NSW      = 300                        # Complex adsorbate may need many steps
+EDIFFG   = -0.03                      # Force convergence (eV/A)
+POTIM    = 0.2                        # Conservative step for oxide + adsorbates
+
+# -----------------------------------------------------------------------------
+# IV. ACCURACY ENHANCEMENTS
+# -----------------------------------------------------------------------------
+ADDGRID  = .TRUE.
+LASPH    = .TRUE.
+LMAXMIX  = 6                          # Required for Ce 4f DFT+U
+LREAL    = Auto                       # Medium-size surface (~85 atoms)
+
+# -----------------------------------------------------------------------------
+# V. SYMMETRY
+# -----------------------------------------------------------------------------
+ISYM     = 0                          # Disable symmetry (asymmetric slab + adsorbates)
+
+# -----------------------------------------------------------------------------
+# VI. DIPOLE CORRECTION
+# -----------------------------------------------------------------------------
+IDIPOL   = 3
+LDIPOL   = .TRUE.
+
+# -----------------------------------------------------------------------------
+# VII. DISPERSION CORRECTION
+# -----------------------------------------------------------------------------
+IVDW     = 12                         # D3BJ (IVDW=11 is D3 zero-damping)
+
+# -----------------------------------------------------------------------------
+# VIII. DFT+U SETTINGS (Ce 4f)
+# -----------------------------------------------------------------------------
+LDAU     = .TRUE.
+LDAUTYPE = 2                          # Dudarev
+LDAUL    = 3 -1 -1 -1 -1              # Ce = f, O/N/C/H = none
+LDAUU    = 5.0 0.0 0.0 0.0 0.0        # U(Ce) = 5.0 eV
+LDAUJ    = 0.0 0.0 0.0 0.0 0.0
+
+# -----------------------------------------------------------------------------
+# IX. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# -----------------------------------------------------------------------------
+# KPAR   = 2
+# NCORE  = 8
+# LSCALU = .FALSE.
+# NSIM   = 4
+
+# -----------------------------------------------------------------------------
+# X. OUTPUT
+# -----------------------------------------------------------------------------
+LWAVE    = .TRUE.
+LCHARG   = .TRUE.
+LELF     = .FALSE.
+LVTOT    = .FALSE.
+NEDOS    = 3001
+
+# END OF INCAR

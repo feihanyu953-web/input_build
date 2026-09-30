@@ -1,0 +1,165 @@
+# ==============================================================================
+# CP2K Input | Cell Optimization (BFGS, direct cell opt)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+&GLOBAL
+  PROJECT     cp2k_cell_opt           # Job name (prefix for output files)
+  RUN_TYPE    CELL_OPT                # Cell + geometry simultaneous optimization
+  PRINT_LEVEL LOW
+&END GLOBAL
+
+# ------------------------------------------------------------------------------
+# II. FORCE EVALUATION
+# ------------------------------------------------------------------------------
+&FORCE_EVAL
+  METHOD Quickstep
+  STRESS_TENSOR ANALYTICAL            # REQUIRED for cell optimization
+
+  &DFT
+    BASIS_SET_FILE_NAME  ./BASIS_MOLOPT
+    POTENTIAL_FILE_NAME  ./GTH_POTENTIALS
+
+    &QS
+      EPS_DEFAULT 1.0E-12
+      METHOD      GPW
+    &END QS
+
+    &MGRID
+      CUTOFF      400
+      REL_CUTOFF  50
+      NGRIDS      4
+    &END MGRID
+
+    &XC
+      &XC_FUNCTIONAL PBE
+      &END XC_FUNCTIONAL
+    &END XC
+
+    &SCF
+      SCF_GUESS   ATOMIC
+      EPS_SCF     1.0E-6
+      MAX_SCF     300
+
+      &DIAGONALIZATION
+        ALGORITHM STANDARD
+      &END DIAGONALIZATION
+
+      &MIXING
+        METHOD   BROYDEN_MIXING
+        ALPHA    0.4
+        NBROYDEN 8
+      &END MIXING
+
+      # For metals: add smearing and k-points
+      # &SMEAR
+      #   METHOD FERMI_DIRAC
+      #   ELECTRONIC_TEMPERATURE [K] 300
+      # &END SMEAR
+      # ADDED_MOS 10                  # NOTE: ADDED_MOS is a keyword of &SCF,
+                                      # not a section (no '&'). CP2K manual:
+                                      # FORCE_EVAL/DFT/SCF.
+    &END SCF
+
+    &POISSON
+      PERIODIC XYZ
+    &END POISSON
+
+    # >>> USER: uncomment for bulk metal / semiconductor k-point sampling <<<
+    # &KPOINTS
+    #   SCHEME MONKHORST-PACK 4 4 4
+    # &END KPOINTS
+
+  &END DFT
+
+  &SUBSYS
+    &CELL
+      ABC     10.0 10.0 10.0
+      ALPHA_BETA_GAMMA 90.0 90.0 90.0
+      PERIODIC XYZ
+    &END CELL
+
+    # >>> USER: add one &KIND block per element type <<<
+    &KIND H
+      BASIS_SET DZVP-MOLOPT-SR-GTH
+      POTENTIAL GTH-PBE
+    &END KIND
+
+    &KIND O
+      BASIS_SET DZVP-MOLOPT-SR-GTH
+      POTENTIAL GTH-PBE
+    &END KIND
+
+    &TOPOLOGY
+      COORD_FILE_NAME    ./coord.xyz
+      COORD_FILE_FORMAT  XYZ
+    &END TOPOLOGY
+  &END SUBSYS
+
+  # --- Output control ---
+  # &FORCES belongs to FORCE_EVAL/PRINT — under DFT/PRINT CP2K aborts with
+  # "unknown subsection FORCES of section PRINT" (2026.1 runtime-verified).
+  &PRINT
+    &FORCES ON
+    &END FORCES
+  &END PRINT
+
+&END FORCE_EVAL
+
+# ------------------------------------------------------------------------------
+# III. CELL OPTIMIZATION
+# ------------------------------------------------------------------------------
+&MOTION
+  &CELL_OPT
+    OPTIMIZER    BFGS                # BFGS / CG / LBFGS
+    # --- Version gate for TYPE (CP2K changelog 2026.2) ---
+    # CP2K <= 2026.1: keep the line below (DIRECT_CELL_OPT recommended;
+    #                 the alternative GEO_OPT only relaxes the cell indirectly).
+    # CP2K >= 2026.2: the TYPE keyword was REMOVED from &CELL_OPT; delete the
+    #                 TYPE line entirely (direct cell optimization is then the
+    #                 only/implicit mode), otherwise CP2K aborts on an unknown
+    #                 keyword. See https://manual.cp2k.org/trunk/changelog.html
+    TYPE         DIRECT_CELL_OPT     # DELETE this line for CP2K >= 2026.2
+    MAX_ITER     200                 # Max optimization steps
+    MAX_DR       3.0E-3              # Max displacement threshold (bohr)
+    RMS_DR       1.5E-3              # RMS displacement threshold (bohr)
+    MAX_FORCE    4.5E-4              # Max force threshold (Hartree/bohr)
+    RMS_FORCE    3.0E-4              # RMS force threshold (Hartree/bohr)
+
+    EXTERNAL_PRESSURE    1.01325      # Target pressure (bar); 1 atm = 1.01325 bar
+    PRESSURE_TOLERANCE   100.0        # Pressure convergence tolerance (bar)
+
+    # --- Optional constraints ---
+    # KEEP_SYMMETRY  .TRUE.           # Preserve initial cell symmetry
+    # KEEP_ANGLES    .TRUE.           # Keep cell angles fixed (e.g., maintain cubic)
+    # CONSTRAINT     YZ               # Only optimize X lattice parameter
+
+    &PRINT
+      &CELL ON                       # Print cell parameters at each step
+      &END CELL
+    &END PRINT
+  &END CELL_OPT
+
+  # --- Trajectory output ---
+  # &TRAJECTORY belongs to MOTION/PRINT — &CELL_OPT/&PRINT/&TRAJECTORY is not
+  # a valid subsection (2026.1 runtime-verified).
+  &PRINT
+    &TRAJECTORY
+      FORMAT XYZ
+    &END TRAJECTORY
+  &END PRINT
+&END MOTION
+
+# ==============================================================================
+# END OF INPUT
+# ==============================================================================
+# Notes:
+# - STRESS_TENSOR ANALYTICAL is mandatory for CELL_OPT
+# - For bulk systems, add &KPOINTS for accurate stress/pressure
+# - DIRECT_CELL_OPT is more efficient than the older GEO_OPT type
+#   (CP2K <= 2026.1); from CP2K 2026.2 the TYPE keyword no longer exists and
+#   direct cell optimization is implicit.
+# - KEEP_SYMMETRY/KEEP_ANGLES useful for maintaining crystal symmetry
+# ==============================================================================

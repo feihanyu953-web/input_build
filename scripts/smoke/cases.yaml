@@ -1,0 +1,1589 @@
+# ==============================================================================
+# input_build smoke 用例定义 | scripts/smoke/cases.yaml
+#
+# 平台无关：所有路径/二进制通过 {{var}} 引用 smoke_env.yaml（见 run_smoke.py
+# build_context）。断言值全部来自 wsl-local 环境 2026-06 实测。
+#
+# 每用例字段：
+#   name            唯一用例名（= runs/ 下的工作目录名）
+#   code            vasp | cp2k | lammps
+#   description     物理目标（一句话）
+#   blueprint       技能内参考蓝本（examples/ 或 base_templates/）
+#   structure       结构生成方式说明
+#   truncations     相对蓝本允许的性能截断（步数 / ENCUT / MAX_SCF 等）
+#   timeout         强 timeout（秒）；超时杀进程树并判 TIMEOUT
+#   files           内联落盘的输入文件（字面块，支持 {{var}}）
+#   potcar          VASP 专用：从 data.vasp_potcars/<El>/POTCAR 按序 cat 生成 POTCAR
+#   setup_cmds      运行前 shell 命令（如 CP2K data 软链），支持 {{var}}
+#   run             运行命令模板
+#   allow_nonzero_exit  允许非零退出（仅 feo_dftu_scf_start 这类人为截断用例）
+#   asserts         物理断言列表（类型见 README：file_exists/grep/not_grep/
+#                   regex_number/xyz_angle）
+#
+# 注意：LAMMPS 报 ERROR 时退出码也是 0 —— 每个 lammps 用例必须带
+#       not_grep ERROR 断言，不能只看退出码。
+#
+# 第二波新增用例（2026-07 收录）依赖 smoke_env.yaml 增补键：
+#   codes.vasp_ncl        vasp_ncl 二进制（SOC 非共线用）
+#   codes.lammps_full     全功能 lmp（10 Sep 2025，含 PLUMED + ML-MACE + KOKKOS）
+#   data.mace_model_path  MACE 模型文件（*.model-lammps.pt）
+# ==============================================================================
+
+# ==============================================================================
+# VASP（7 例）
+# ==============================================================================
+
+- name: si_relax
+  code: vasp
+  description: Si 体相原胞 CG 弛豫，验证 POTCAR/KPOINTS/INCAR 全链路 + 能量基准
+  blueprint: base_templates/vasp_relax.incar
+  structure: 内联 POSCAR（2 原子 Si 金刚石原胞，同 tests/fixtures/POSCAR_Si）
+  truncations:
+    NSW: "100 → 30"
+    kmesh: "8x8x8 → 4x4x4 MP"
+    EDIFF: "1E-6 → 1E-5"
+    ENCUT: 400（保持，Si ENMAX ~245 eV，400 已足够）
+  timeout: 1200
+  files:
+    POSCAR: |
+      Si
+        1.0
+        0.0000000000    2.7155000000    2.7155000000
+        2.7155000000    0.0000000000    2.7155000000
+        2.7155000000    2.7155000000    0.0000000000
+      Si
+        2
+      Cartesian
+        0.0000000000    0.0000000000    0.0000000000
+        1.3577500000    1.3577500000    1.3577500000
+    INCAR: |
+      SYSTEM   = Si relax smoke
+      PREC     = Normal
+      ENCUT    = 400
+      ALGO     = Normal
+      EDIFF    = 1E-5              # smoke 截断：蓝本 1E-6
+      ISMEAR   = 0
+      SIGMA    = 0.05              # 半导体：Gaussian 窄涂抹
+      NELMIN   = 6
+      NELM     = 100
+      IBRION   = 2
+      ISIF     = 2
+      NSW      = 30                # smoke 截断：蓝本 100
+      EDIFFG   = -0.03
+      POTIM    = 0.5
+      ADDGRID  = .TRUE.
+      LASPH    = .TRUE.
+      LREAL    = .FALSE.           # 2 原子小原胞
+      ISYM     = 0
+    KPOINTS: |
+      Si 4x4x4 MP（smoke 截断：蓝本 8x8x8）
+      0
+      Monkhorst-Pack
+      4 4 4
+      0 0 0
+  potcar: [Si]
+  run: "{{vasp_std}}"
+  asserts:
+    - type: grep
+      path: OUTCAR
+      pattern: 'reached required accuracy'
+      note: CG 弛豫收敛
+    - type: regex_number
+      path: OUTCAR
+      pattern: 'free\s+energy\s+TOTEN\s*=\s*(-?[0-9.]+)'
+      occurrence: last
+      divide_by: 2
+      min: -5.44
+      max: -5.24
+      note: Si PE = -5.34 ± 0.1 eV/atom（2026-06 实测）
+
+- name: h2_freq
+  code: vasp
+  description: H2 分子有限差分频率（IBRION=5），验证频率流程与数值基准
+  blueprint: base_templates/vasp_freq.incar
+  structure: 内联 POSCAR（H2 在 12 Å 盒子中心，键长 0.75 Å 起步）
+  truncations:
+    ENCUT: 400（保持模板下限）
+    SIGMA: "0.1 → 0.05（孤立小分子，模板注释建议值）"
+  timeout: 1800
+  files:
+    POSCAR: |
+      H2 molecule in 12 A box
+        1.0
+        12.0000000000    0.0000000000    0.0000000000
+        0.0000000000    12.0000000000    0.0000000000
+        0.0000000000    0.0000000000    12.0000000000
+      H
+        2
+      Cartesian
+        6.0000000000    6.0000000000    5.6250000000
+        6.0000000000    6.0000000000    6.3750000000
+    INCAR: |
+      SYSTEM   = H2 freq smoke
+      PREC     = Accurate
+      ENCUT    = 400
+      ALGO     = Normal
+      EDIFF    = 1E-6
+      ISMEAR   = 0
+      SIGMA    = 0.05              # 孤立小分子：0.01-0.05
+      NELMIN   = 6
+      NELM     = 100
+      IBRION   = 5                 # 有限差分 Hessian
+      NSW      = 1                 # IBRION=5/6 必须 NSW>0，否则只做静态 SCF
+      NFREE    = 2                 # 中心差分
+      POTIM    = 0.015
+      NWRITE   = 1
+      ISYM     = 0
+      ADDGRID  = .TRUE.
+      LASPH    = .TRUE.
+    KPOINTS: |
+      Gamma only（孤立分子）
+      0
+      Gamma
+      1 1 1
+      0 0 0
+  potcar: [H]
+  run: "{{vasp_gam}}"
+  asserts:
+    - type: grep
+      path: OUTCAR
+      pattern: 'General timing and accounting informations'
+      note: VASP 正常收尾
+    - type: regex_number
+      path: OUTCAR
+      pattern: '(?m)^\s*1 f\s+=\s+[0-9.]+\s+THz\s+[0-9.]+\s+2PiTHz\s+([0-9.]+)\s+cm-1'
+      occurrence: first
+      min: 4200
+      max: 4450
+      note: H2 伸缩频率 4200-4450 cm-1（2026-06 实测区间）
+
+- name: vaspsol_h2
+  code: vasp
+  description: H2 + VASPsol 隐式溶剂静态计算，验证 solvation patch 生效
+  blueprint: base_templates/vasp_relax.incar + modifiers/solvation.patch
+  structure: 内联 POSCAR（同 h2_freq 的 H2/12 Å 盒子）
+  truncations:
+    NSW: "100 → 0（静态单点即可验证 VASPsol 输出）"
+    PREC: Accurate（solvation.patch 要求；保留）
+  timeout: 900
+  files:
+    POSCAR: |
+      H2 molecule in 12 A box
+        1.0
+        12.0000000000    0.0000000000    0.0000000000
+        0.0000000000    12.0000000000    0.0000000000
+        0.0000000000    0.0000000000    12.0000000000
+      H
+        2
+      Cartesian
+        6.0000000000    6.0000000000    5.6250000000
+        6.0000000000    6.0000000000    6.3750000000
+    INCAR: |
+      SYSTEM   = H2 vaspsol smoke
+      PREC     = Accurate          # solvation.patch：空化能需要更细网格
+      ENCUT    = 400
+      ALGO     = Normal
+      EDIFF    = 1E-6
+      ISMEAR   = 0
+      SIGMA    = 0.05
+      NELMIN   = 6
+      NELM     = 100
+      IBRION   = -1                # 静态单点
+      NSW      = 0
+      ISYM     = 0
+      LSOL     = .TRUE.            # --- modifiers/solvation.patch ---
+      EB_K     = 78.4              # 水
+      TAU      = 0.0               # 忽略空化项（稳健默认）
+    KPOINTS: |
+      Gamma only（孤立分子）
+      0
+      Gamma
+      1 1 1
+      0 0 0
+  potcar: [H]
+  run: "{{vasp_gam}}"
+  asserts:
+    - type: regex_number
+      path: OUTCAR
+      pattern: 'Ediel_sol\s*=\s*([-+0-9.Ee]+)'
+      occurrence: last
+      abs_min: 1.0e-8
+      note: 最后一个 Ediel_sol 必须非零；恒 0 表示 LSOL 未实际耦合
+    - type: grep
+      path: vasprun.xml
+      pattern: 'LSOL'
+      note: vasprun.xml 必须记录 LSOL 溶剂参数
+    - type: grep
+      path: vasprun.xml
+      pattern: 'EB_K'
+      note: vasprun.xml 必须记录 EB_K 介电常数
+    - type: grep
+      path: OUTCAR
+      pattern: 'General timing and accounting informations'
+      note: VASP 正常收尾
+
+# --- 第二波 VASP（2026-07 实测收录，wsl-local）----------------------------------
+
+- name: vasp_dftu_feo
+  code: vasp
+  description: FeO 岩盐 DFT+U（Dudarev，AFM 初猜）单离子步，验证 LDAU 全链路生效
+  blueprint: base_templates/vasp_dftu.incar
+  structure: 内联 POSCAR（岩盐常规胞 a=4.28 Å，4 Fe + 4 O，几何同 C10 蓝本）
+  truncations:
+    NSW: "100 → 1（只走 1 个离子步验证 +U 生效）"
+    EDIFF: "1E-6 → 1E-5"
+    kmesh: "生产 4x4x4 → 2x2x2 MP"
+  timeout: 1800
+  files:
+    POSCAR: |
+      FeO rocksalt a=4.28, AFM-II initial guess
+        1.0
+        4.2800000000    0.0000000000    0.0000000000
+        0.0000000000    4.2800000000    0.0000000000
+        0.0000000000    0.0000000000    4.2800000000
+      Fe O
+        4 4
+      Cartesian
+        0.0000000000    0.0000000000    0.0000000000
+        2.1400000000    2.1400000000    0.0000000000
+        2.1400000000    0.0000000000    2.1400000000
+        0.0000000000    2.1400000000    2.1400000000
+        2.1400000000    2.1400000000    2.1400000000
+        2.1400000000    0.0000000000    0.0000000000
+        0.0000000000    2.1400000000    0.0000000000
+        0.0000000000    0.0000000000    2.1400000000
+    INCAR: |
+      SYSTEM   = FeO DFT+U smoke
+      PREC     = Normal
+      ENCUT    = 400
+      ALGO     = Normal
+      EDIFF    = 1E-5              # smoke 截断：蓝本 1E-6
+      ISMEAR   = 0
+      SIGMA    = 0.1
+      NELMIN   = 6
+      NELM     = 100
+      IBRION   = 2
+      ISIF     = 2
+      NSW      = 1                 # smoke 截断：蓝本 100
+      EDIFFG   = -0.03
+      POTIM    = 0.5
+      ADDGRID  = .TRUE.
+      LASPH    = .TRUE.
+      ISYM     = 0
+      ISPIN    = 2                 # FeO 是反铁磁 Mott 绝缘体
+      MAGMOM   = 4.0 -4.0 -4.0 -4.0 4*0.0   # Fe1 上 / Fe2 下（POSCAR 顺序），O 零
+      LDAU     = .TRUE.
+      LDAUTYPE = 2                 # Dudarev
+      LMAXMIX  = 4                 # d 电子 U 必须（蓝本硬性要求）
+      LDAUL    = 2 -1
+      LDAUU    = 4.3 0.0
+      LDAUJ    = 0.0 0.0
+    KPOINTS: |
+      FeO 2x2x2 MP（smoke 截断：生产 4x4x4）
+      0
+      Monkhorst-Pack
+      2 2 2
+      0 0 0
+  potcar: [Fe, O]
+  run: "{{vasp_std}}"
+  asserts:
+    - type: grep
+      path: OUTCAR
+      pattern: 'LDA\+U is selected'
+      note: OUTCAR 含 'LDA+U is selected' → +U 确实生效（regex 中 + 需转义）
+    - type: grep
+      path: OUTCAR
+      pattern: 'General timing and accounting informations'
+      note: VASP 正常收尾（exit 0 由 runner 退出码检查保证）
+
+- name: vasp_soc_pt
+  code: vasp
+  description: Pt FCC 原胞 SOC 静态（vasp_ncl + LSORBIT），验证非共线链路
+  blueprint: base_templates/vasp_relax.incar + modifiers/soc.patch
+  structure: 内联 POSCAR（Pt FCC 原胞 1 原子，a=3.922 Å）
+  truncations:
+    NSW: "100 → 0（静态单点即可验证 SOC 生效）"
+    kmesh: "生产 12x12x12 → 6x6x6 MP"
+  timeout: 1800
+  files:
+    POSCAR: |
+      Pt FCC primitive, a=3.922 A
+        1.0
+        0.0000000000    1.9610000000    1.9610000000
+        1.9610000000    0.0000000000    1.9610000000
+        1.9610000000    1.9610000000    0.0000000000
+      Pt
+        1
+      Cartesian
+        0.0000000000    0.0000000000    0.0000000000
+    INCAR: |
+      SYSTEM   = Pt SOC smoke
+      PREC     = Normal
+      ENCUT    = 400               # soc.patch：1.3-1.5x 常规值（Pt ENMAX ~230 eV）
+      ALGO     = Normal
+      EDIFF    = 1E-5
+      ISMEAR   = 1                 # 金属 Pt：Methfessel-Paxton
+      SIGMA    = 0.2
+      NELMIN   = 6
+      NELM     = 100
+      IBRION   = -1                # 静态单点
+      NSW      = 0
+      # --- modifiers/soc.patch ---
+      LSORBIT  = .TRUE.
+      SAXIS    = 0 0 1
+      NBANDS   = 16                # 非共线能带 ~2x 标量值，必须显式给（validator WARN）
+      LMAXMIX  = 4                 # d 电子体系
+      ISYM     = 0
+      ADDGRID  = .TRUE.
+      LASPH    = .TRUE.
+      LREAL    = .FALSE.           # 1 原子原胞
+    KPOINTS: |
+      Pt 6x6x6 MP（smoke 截断：生产 12x12x12）
+      0
+      Monkhorst-Pack
+      6 6 6
+      0 0 0
+  potcar: [Pt]
+  run: "{{vasp_ncl}}"
+  asserts:
+    - type: grep
+      path: OUTCAR
+      pattern: 'LNONCOLLINEAR'
+      note: OUTCAR 含 'LNONCOLLINEAR' → vasp_ncl 非共线模式生效
+    - type: grep
+      path: OUTCAR
+      pattern: 'General timing and accounting informations'
+      note: VASP 正常收尾（exit 0 由 runner 退出码检查保证）
+
+- name: vasp_metagga_si
+  code: vasp
+  description: Si 原胞 METAGGA=R2SCAN 静态，验证 meta-GGA 泛函链路
+  blueprint: base_templates/vasp_relax.incar + modifiers/metagga.patch
+  structure: 内联 POSCAR（2 原子 Si 金刚石原胞，同 si_relax）
+  truncations:
+    NSW: "100 → 0（静态单点即可验证泛函生效）"
+    kmesh: "8x8x8 → 4x4x4 MP"
+  timeout: 1200
+  files:
+    POSCAR: |
+      Si
+        1.0
+        0.0000000000    2.7155000000    2.7155000000
+        2.7155000000    0.0000000000    2.7155000000
+        2.7155000000    2.7155000000    0.0000000000
+      Si
+        2
+      Cartesian
+        0.0000000000    0.0000000000    0.0000000000
+        1.3577500000    1.3577500000    1.3577500000
+    INCAR: |
+      SYSTEM   = Si R2SCAN smoke
+      PREC     = Normal
+      ENCUT    = 400
+      ALGO     = All               # meta-GGA 推荐 All/Damped，数值更稳
+      EDIFF    = 1E-6
+      ISMEAR   = 0
+      SIGMA    = 0.05
+      NELMIN   = 6
+      NELM     = 100
+      IBRION   = -1                # 静态单点
+      NSW      = 0
+      # --- modifiers/metagga.patch ---
+      METAGGA  = R2SCAN
+      LASPH    = .TRUE.            # meta-GGA 强制（validator ERROR）
+      ADDGRID  = .TRUE.            # meta-GGA 推荐（validator WARN）
+      LREAL    = .FALSE.
+      ISYM     = 0
+    KPOINTS: |
+      Si 4x4x4 MP（smoke 截断：蓝本 8x8x8）
+      0
+      Monkhorst-Pack
+      4 4 4
+      0 0 0
+  potcar: [Si]
+  run: "{{vasp_std}}"
+  asserts:
+    - type: grep
+      path: OUTCAR
+      pattern: 'R2SCAN'
+      note: OUTCAR 含 'R2SCAN'（METAGGA 回显/泛函信息）→ meta-GGA 生效
+    - type: grep
+      path: OUTCAR
+      pattern: 'General timing and accounting informations'
+      note: VASP 正常收尾
+
+- name: vasp_efield_h2o
+  code: vasp
+  description: H2O 分子 VASPsol + 外电场（EFIELD+IDIPOL+LDIPOL）静态，验证 solvation 与 efield patch 同时生效
+  blueprint: base_templates/vasp_relax.incar + modifiers/solvation.patch + modifiers/dipole.patch + modifiers/efield.patch
+  structure: 内联 POSCAR（H2O 在 12 Å 盒子中心，O-H ~0.958 Å / 角 ~104.5°）
+  truncations:
+    NSW: "100 → 0（静态单点即可验证两个 patch 生效）"
+  timeout: 900
+  files:
+    POSCAR: |
+      H2O molecule in 12 A box
+        1.0
+        12.0000000000    0.0000000000    0.0000000000
+        0.0000000000    12.0000000000    0.0000000000
+        0.0000000000    0.0000000000    12.0000000000
+      O H
+        1 2
+      Cartesian
+        6.0000000000    6.0000000000    6.0000000000
+        6.9572000000    6.0000000000    6.0000000000
+        5.7600000000    6.9273000000    6.0000000000
+    INCAR: |
+      SYSTEM   = H2O efield+sol smoke
+      PREC     = Accurate          # solvation.patch：空化能需要更细网格
+      ENCUT    = 400
+      ALGO     = Normal
+      EDIFF    = 1E-6
+      ISMEAR   = 0
+      SIGMA    = 0.05
+      NELMIN   = 6
+      NELM     = 100
+      IBRION   = -1                # 静态单点
+      NSW      = 0
+      ISYM     = 0
+      # --- modifiers/solvation.patch ---
+      LSOL     = .TRUE.
+      EB_K     = 78.4              # 水
+      TAU      = 0.0
+      # --- modifiers/dipole.patch + efield.patch ---
+      LDIPOL   = .TRUE.
+      IDIPOL   = 3                 # 场/偶极修正沿 z
+      DIPOL    = 0.5 0.5 0.5       # 盒中心（分数坐标）
+      EFIELD   = 0.1               # eV/Å；必须配 IDIPOL+LDIPOL，否则静默无效
+    KPOINTS: |
+      Gamma only（孤立分子）
+      0
+      Gamma
+      1 1 1
+      0 0 0
+  potcar: [O, H]
+  run: "{{vasp_gam}}"
+  asserts:
+    - type: regex_number
+      path: OUTCAR
+      pattern: 'Ediel_sol\s*=\s*([-+0-9.Ee]+)'
+      occurrence: last
+      abs_min: 1.0e-8
+      note: 最后一个 Ediel_sol 必须非零；恒 0 表示 LSOL 未实际耦合
+    - type: grep
+      path: vasprun.xml
+      pattern: 'LSOL'
+      note: vasprun.xml 必须记录 LSOL 溶剂参数
+    - type: grep
+      path: vasprun.xml
+      pattern: 'EB_K'
+      note: vasprun.xml 必须记录 EB_K 介电常数
+    - type: grep
+      path: OUTCAR
+      pattern: 'EFIELD'
+      note: OUTCAR 含 'EFIELD' 回显 → 外电场被读入（配 IDIPOL+LDIPOL 才实际施加）
+    - type: grep
+      path: OUTCAR
+      pattern: 'General timing and accounting informations'
+      note: VASP 正常收尾
+
+# ==============================================================================
+# CP2K（4 例）
+# ==============================================================================
+
+- name: h2o_geo_opt
+  code: cp2k
+  description: H2O 分子 GEO_OPT（BFGS），验证 0D Poisson(ANALYTIC) 配置与几何基准
+  blueprint: examples/C2_CP2K_H2O_opt
+  structure: 内联 H2O.xyz（同 C2 蓝本，20 Å 盒子）
+  truncations:
+    MAX_ITER: "200 → 50"
+  timeout: 1200
+  setup_cmds:
+    - "ln -sf {{cp2k_data}}/BASIS_MOLOPT ."
+    - "ln -sf {{cp2k_data}}/GTH_POTENTIALS ."
+  files:
+    H2O.xyz: |
+      3
+
+      O      10.000000000000000     10.763239000000000     10.596309000000002
+      H      10.000000000000000     11.526478000000001     10.000000000000000
+      H      10.000000000000000     10.000000000000000     10.000000000000000
+    h2o_geo_opt.inp: |
+      &GLOBAL
+        PROJECT     h2o_geo_opt
+        RUN_TYPE    GEO_OPT
+        PRINT_LEVEL LOW
+      &END GLOBAL
+
+      &FORCE_EVAL
+        METHOD Quickstep
+        &DFT
+          BASIS_SET_FILE_NAME  ./BASIS_MOLOPT
+          POTENTIAL_FILE_NAME  ./GTH_POTENTIALS
+          &QS
+            EPS_DEFAULT 1.0E-12
+            METHOD      GPW
+          &END QS
+          &MGRID
+            CUTOFF      400
+            REL_CUTOFF  50
+            NGRIDS      4
+          &END MGRID
+          &XC
+            &XC_FUNCTIONAL PBE
+            &END XC_FUNCTIONAL
+          &END XC
+          &SCF
+            SCF_GUESS   ATOMIC
+            EPS_SCF     1.0E-6
+            MAX_SCF     300
+            &DIAGONALIZATION
+              ALGORITHM STANDARD
+            &END DIAGONALIZATION
+            &MIXING
+              METHOD   BROYDEN_MIXING
+              ALPHA    0.4
+              NBROYDEN 8
+            &END MIXING
+          &END SCF
+          # 孤立分子(0D)：PERIODIC NONE 必须配 0D 兼容 solver（ANALYTIC）
+          &POISSON
+            POISSON_SOLVER ANALYTIC
+            PERIODIC NONE
+          &END POISSON
+        &END DFT
+        &SUBSYS
+          &CELL
+            ABC     20.0 20.0 20.0
+            ALPHA_BETA_GAMMA 90.0 90.0 90.0
+            PERIODIC NONE
+          &END CELL
+          &KIND H
+            BASIS_SET DZVP-MOLOPT-SR-GTH
+            POTENTIAL GTH-PBE
+          &END KIND
+          &KIND O
+            BASIS_SET DZVP-MOLOPT-SR-GTH
+            POTENTIAL GTH-PBE
+          &END KIND
+          &TOPOLOGY
+            COORD_FILE_NAME    ./H2O.xyz
+            COORD_FILE_FORMAT  XYZ
+          &END TOPOLOGY
+        &END SUBSYS
+      &END FORCE_EVAL
+
+      &MOTION
+        &GEO_OPT
+          TYPE         MINIMIZATION
+          OPTIMIZER    BFGS
+          MAX_ITER     50                  # smoke 截断：蓝本 200
+          MAX_DR       3.0E-3
+          RMS_DR       1.5E-3
+          MAX_FORCE    4.5E-4
+          RMS_FORCE    3.0E-4
+        &END GEO_OPT
+        &PRINT
+          &TRAJECTORY
+            FORMAT XYZ
+            &EACH
+              GEO_OPT 1
+            &END EACH
+          &END TRAJECTORY
+        &END PRINT
+      &END MOTION
+  run: "{{cp2k}} -i h2o_geo_opt.inp -o cp2k.out"
+  asserts:
+    - type: grep
+      path: cp2k.out
+      pattern: 'GEOMETRY OPTIMIZATION COMPLETED'
+      note: 几何优化收敛
+    - type: not_grep
+      path: cp2k.out
+      pattern: 'ABORT'
+      note: 无 CP2K abort
+    - type: xyz_angle
+      path: h2o_geo_opt-pos-1.xyz
+      atoms: [2, 1, 3]
+      min: 102
+      max: 106
+      note: 优化后 H-O-H 键角 104 ± 2°（atoms=H,O,H，顶点为 O；2026-06 实测）
+
+- name: h2o_hirshfeld
+  code: cp2k
+  description: H2O Hirshfeld 电荷（SHAPE_FUNCTION DENSITY），验证电荷划分基准
+  blueprint: examples/C13_CP2K_H2O_hirshfeld
+  structure: 内联 H2O.xyz（同 C13 蓝本，10 Å 盒子）
+  truncations: {}
+  timeout: 600
+  setup_cmds:
+    - "ln -sf {{cp2k_data}}/BASIS_MOLOPT ."
+    - "ln -sf {{cp2k_data}}/GTH_POTENTIALS ."
+  files:
+    H2O.xyz: |
+      3
+
+      O      10.000000000000000     10.763239000000000     10.596309000000002
+      H      10.000000000000000     11.526478000000001     10.000000000000000
+      H      10.000000000000000     10.000000000000000     10.000000000000000
+    h2o_hirshfeld.inp: |
+      &GLOBAL
+        PROJECT     h2o_hirshfeld
+        RUN_TYPE    ENERGY
+        PRINT_LEVEL LOW
+      &END GLOBAL
+
+      &FORCE_EVAL
+        METHOD Quickstep
+        &DFT
+          BASIS_SET_FILE_NAME  ./BASIS_MOLOPT
+          POTENTIAL_FILE_NAME  ./GTH_POTENTIALS
+          &QS
+            EPS_DEFAULT 1.0E-12
+            METHOD      GPW
+          &END QS
+          &MGRID
+            CUTOFF      400
+            REL_CUTOFF  50
+            NGRIDS      4
+          &END MGRID
+          &XC
+            &XC_FUNCTIONAL PBE
+            &END XC_FUNCTIONAL
+          &END XC
+          &SCF
+            SCF_GUESS   ATOMIC
+            EPS_SCF     1.0E-7
+            MAX_SCF     300
+            &DIAGONALIZATION
+              ALGORITHM STANDARD
+            &END DIAGONALIZATION
+            &MIXING
+              METHOD   BROYDEN_MIXING
+              ALPHA    0.4
+              NBROYDEN 8
+            &END MIXING
+          &END SCF
+          &POISSON
+            POISSON_SOLVER ANALYTIC
+            PERIODIC NONE
+          &END POISSON
+          &PRINT
+            &HIRSHFELD ON
+              SELF_CONSISTENT F
+              SHAPE_FUNCTION DENSITY   # GAUSSIAN 给 O=-1.117 e 且破坏电荷守恒；
+            &END HIRSHFELD             # DENSITY 给 O=-0.304 e（2026.1 实测）
+          &END PRINT
+        &END DFT
+        &SUBSYS
+          &CELL
+            ABC     10.0 10.0 10.0
+            ALPHA_BETA_GAMMA 90.0 90.0 90.0
+            PERIODIC NONE
+          &END CELL
+          &KIND H
+            BASIS_SET DZVP-MOLOPT-SR-GTH
+            POTENTIAL GTH-PBE
+          &END KIND
+          &KIND O
+            BASIS_SET DZVP-MOLOPT-SR-GTH
+            POTENTIAL GTH-PBE
+          &END KIND
+          &TOPOLOGY
+            COORD_FILE_NAME    ./H2O.xyz
+            COORD_FILE_FORMAT  XYZ
+          &END TOPOLOGY
+        &END SUBSYS
+      &END FORCE_EVAL
+  run: "{{cp2k}} -i h2o_hirshfeld.inp -o cp2k.out"
+  asserts:
+    - type: grep
+      path: cp2k.out
+      pattern: 'Hirshfeld Charges'
+      note: Hirshfeld 表已打印
+    - type: regex_number
+      path: cp2k.out
+      pattern: '(?m)^\s*\d+\s+O\s+\d+\s+[0-9.]+\s+[0-9.]+\s+(-?[0-9.]+)\s*$'
+      occurrence: last
+      min: -0.35
+      max: -0.25
+      note: Hirshfeld O 净电荷 = -0.30 ± 0.05 e（2026-06 实测 -0.304 e）
+
+- name: metadyn_dimer
+  code: cp2k
+  description: 水二聚体 well-tempered metadynamics（O-O 距离 CV），验证 COLVAR/HILLS 输出
+  blueprint: examples/C15_cp2k_metadyn
+  structure: 内联 coord.xyz（同 C15 蓝本水二聚体，O-O 2.95 Å 起步）
+  truncations:
+    STEPS: "5000 → 300"
+    NT_HILLS: "100 → 50"
+  timeout: 1800
+  setup_cmds:
+    - "ln -sf {{cp2k_data}}/BASIS_MOLOPT ."
+    - "ln -sf {{cp2k_data}}/GTH_POTENTIALS ."
+  files:
+    coord.xyz: |
+      6
+      water dimer
+      O      0.000    0.000    0.000
+      H      0.757    0.586    0.000
+      H     -0.757    0.586    0.000
+      O      0.000    0.000    2.950
+      H      0.757   -0.586    2.950
+      H     -0.757   -0.586    2.950
+    metadyn_dimer.inp: |
+      &GLOBAL
+        PROJECT     metadyn_dimer
+        RUN_TYPE    MD
+        PRINT_LEVEL LOW
+      &END GLOBAL
+
+      &FORCE_EVAL
+        METHOD Quickstep
+        &DFT
+          BASIS_SET_FILE_NAME  ./BASIS_MOLOPT
+          POTENTIAL_FILE_NAME  ./GTH_POTENTIALS
+          &QS
+            EPS_DEFAULT 1.0E-12
+            METHOD      GPW
+          &END QS
+          &MGRID
+            CUTOFF      400
+            REL_CUTOFF  50
+            NGRIDS      4
+          &END MGRID
+          &XC
+            &XC_FUNCTIONAL PBE
+            &END XC_FUNCTIONAL
+          &END XC
+          &SCF
+            SCF_GUESS   RESTART
+            EPS_SCF     1.0E-6
+            MAX_SCF     300
+            &DIAGONALIZATION
+              ALGORITHM STANDARD
+            &END DIAGONALIZATION
+            &MIXING
+              METHOD   BROYDEN_MIXING
+              ALPHA    0.4
+              NBROYDEN 8
+            &END MIXING
+          &END SCF
+          &POISSON
+            PERIODIC XYZ
+          &END POISSON
+        &END DFT
+        &SUBSYS
+          &CELL
+            ABC     10.0 10.0 10.0
+            ALPHA_BETA_GAMMA 90.0 90.0 90.0
+            PERIODIC XYZ
+          &END CELL
+          &KIND H
+            BASIS_SET DZVP-MOLOPT-SR-GTH
+            POTENTIAL GTH-PBE
+          &END KIND
+          &KIND O
+            BASIS_SET DZVP-MOLOPT-SR-GTH
+            POTENTIAL GTH-PBE
+          &END KIND
+          # CV1: 水二聚体 O-O 距离（coord.xyz 中第 1、4 号原子）
+          &COLVAR
+            &DISTANCE
+              ATOMS 1 4
+            &END DISTANCE
+          &END COLVAR
+          &TOPOLOGY
+            COORD_FILE_NAME    ./coord.xyz
+            COORD_FILE_FORMAT  XYZ
+          &END TOPOLOGY
+        &END SUBSYS
+      &END FORCE_EVAL
+
+      &MOTION
+        &MD
+          ENSEMBLE    NVT
+          STEPS       300                # smoke 截断：蓝本 5000
+          TIMESTEP    0.5                # fs；含 H → ≤ 0.5
+          TEMPERATURE 300.0
+          &THERMOSTAT
+            TYPE        CSVR
+            &CSVR
+              TIMECON   100.0
+            &END CSVR
+          &END THERMOSTAT
+        &END MD
+        &FREE_ENERGY
+          &METADYN
+            DO_HILLS  .TRUE.
+            NT_HILLS  50                 # smoke 截断：蓝本 100
+            WW        [kcalmol] 1.5
+            &METAVAR
+              SCALE     0.5
+              COLVAR    1
+              # QUARTIC + POSITION 已是上墙；CP2K &WALL 没有 DIRECTION 关键字
+              &WALL
+                TYPE      QUARTIC
+                POSITION  [angstrom] 5.0
+                &QUARTIC
+                  K [kcalmol] 40.0
+                &END QUARTIC
+              &END WALL
+            &END METAVAR
+            WELL_TEMPERED .TRUE.
+            WTGAMMA     20
+            &PRINT
+              &COLVAR
+                COMMON_ITERATION_LEVELS 3
+                &EACH
+                  MD    10
+                &END EACH
+              &END COLVAR
+              &HILLS
+                COMMON_ITERATION_LEVELS 3
+                &EACH
+                  MD    10
+                &END EACH
+              &END HILLS
+            &END PRINT
+          &END METADYN
+        &END FREE_ENERGY
+        &PRINT
+          &TRAJECTORY
+            FORMAT     XYZ
+            &EACH
+              MD       10
+            &END EACH
+          &END TRAJECTORY
+        &END PRINT
+      &END MOTION
+  run: "{{cp2k}} -i metadyn_dimer.inp -o cp2k.out"
+  asserts:
+    - type: file_exists
+      path: metadyn_dimer-COLVAR.metadynLog
+      min_size: 1
+      note: COLVAR 文件非空
+    - type: file_exists
+      path: metadyn_dimer-HILLS.metadynLog
+      min_size: 1
+      note: HILLS 文件非空
+    - type: not_grep
+      path: cp2k.out
+      pattern: 'ABORT'
+      note: 无 CP2K abort
+
+- name: feo_dftu_scf_start
+  code: cp2k
+  description: FeO 岩盐 DFT+U（UKS + AFM 初猜），只验证能进入 SCF 迭代（历史坑：DFT+U/k-points/UKS 直接 abort）
+  blueprint: examples/C10_CP2K_FeO_dftu
+  structure: 内联 FeO.xyz（同 C10 蓝本，岩盐常规胞 a=4.28 Å，Fe1/Fe2 反铁磁初猜）
+  truncations:
+    MAX_SCF: "300 → 10（人为截断：本例只验证进入 SCF，收敛被故意放弃，故 allow_nonzero_exit）"
+  timeout: 900
+  allow_nonzero_exit: true
+  setup_cmds:
+    - "ln -sf {{cp2k_data}}/BASIS_MOLOPT ."
+    - "ln -sf {{cp2k_data}}/GTH_POTENTIALS ."
+  files:
+    FeO.xyz: |
+      8
+      FeO rocksalt conventional cell, a = 4.28 Angstrom; AFM-II: Fe1 = spin-up (111), Fe2 = spin-down (111)
+      Fe1      0.000000      0.000000      0.000000
+      Fe2      2.140000      2.140000      0.000000
+      Fe2      2.140000      0.000000      2.140000
+      Fe2      0.000000      2.140000      2.140000
+      O        2.140000      2.140000      2.140000
+      O        2.140000      0.000000      0.000000
+      O        0.000000      2.140000      0.000000
+      O        0.000000      0.000000      2.140000
+    feo_dftu.inp: |
+      &GLOBAL
+        PROJECT     feo_dftu_scf_start
+        RUN_TYPE    ENERGY_FORCE
+        PRINT_LEVEL LOW
+      &END GLOBAL
+
+      &FORCE_EVAL
+        METHOD Quickstep
+        &DFT
+          BASIS_SET_FILE_NAME  ./BASIS_MOLOPT
+          POTENTIAL_FILE_NAME  ./GTH_POTENTIALS
+          PLUS_U_METHOD MULLIKEN
+          # FeO 是反铁磁 Mott 绝缘体：不开 UKS 会收敛到错误的非磁解
+          UKS .TRUE.
+          &QS
+            EPS_DEFAULT 1.0E-12
+            METHOD      GPW
+          &END QS
+          &MGRID
+            CUTOFF      600
+            REL_CUTOFF  60
+            NGRIDS      4
+          &END MGRID
+          &XC
+            &XC_FUNCTIONAL PBE
+            &END XC_FUNCTIONAL
+          &END XC
+          &SCF
+            SCF_GUESS   RESTART
+            EPS_SCF     1.0E-7
+            MAX_SCF     10               # smoke 人为截断：只验证进入 SCF
+            &DIAGONALIZATION
+              ALGORITHM STANDARD
+            &END DIAGONALIZATION
+            &MIXING
+              METHOD   BROYDEN_MIXING
+              ALPHA    0.4
+              NBROYDEN 8
+            &END MIXING
+            &SMEAR
+              METHOD FERMI_DIRAC
+              ELECTRONIC_TEMPERATURE [K] 300
+            &END SMEAR
+            ADDED_MOS 10
+          &END SCF
+          &POISSON
+            PERIODIC XYZ
+          &END POISSON
+          # 版本门（2026.1 实测）：CP2K < 2026.2 出现任何 &KPOINTS 块都会
+          # 让 Mulliken DFT+U abort（"not implemented for k-points"）；
+          # 完全省略 &KPOINTS = Gamma 点。>= 2026.2 可换 MP 网格。
+          &PRINT
+            &PLUS_U ON
+            &END PLUS_U
+          &END PRINT
+        &END DFT
+        &SUBSYS
+          &CELL
+            ABC     4.28 4.28 4.28
+            ALPHA_BETA_GAMMA 90.0 90.0 90.0
+            PERIODIC XYZ
+          &END CELL
+          &KIND Fe1                            # spin-up Fe 子晶格
+            BASIS_SET DZVP-MOLOPT-SR-GTH
+            POTENTIAL GTH-PBE
+            MAGNETIZATION 4.0                  # Fe2+ d6 高自旋 ~ +4 mu_B
+            &DFT_PLUS_U ON
+              L 2
+              U_MINUS_J [eV] 4.0
+            &END DFT_PLUS_U
+          &END KIND
+          &KIND Fe2                            # spin-down Fe 子晶格
+            BASIS_SET DZVP-MOLOPT-SR-GTH
+            POTENTIAL GTH-PBE
+            MAGNETIZATION -4.0
+            &DFT_PLUS_U ON
+              L 2
+              U_MINUS_J [eV] 4.0
+            &END DFT_PLUS_U
+          &END KIND
+          &KIND O
+            BASIS_SET DZVP-MOLOPT-SR-GTH
+            POTENTIAL GTH-PBE
+          &END KIND
+          &TOPOLOGY
+            COORD_FILE_NAME    ./FeO.xyz
+            COORD_FILE_FORMAT  XYZ
+          &END TOPOLOGY
+        &END SUBSYS
+      &END FORCE_EVAL
+  run: "{{cp2k}} -i feo_dftu.inp -o cp2k.out"
+  asserts:
+    - type: grep
+      path: cp2k.out
+      pattern: 'SCF WAVEFUNCTION OPTIMIZATION'
+      note: 已进入 SCF 迭代（之后因 MAX_SCF=10 人为截断而报未收敛，属预期）
+
+# ==============================================================================
+# LAMMPS（7 例）
+# ==============================================================================
+
+- name: al_eam_nvt
+  code: lammps
+  description: Al FCC EAM 短 NVT，验证势文件加载与能量基准
+  blueprint: examples/L1_Al_EAM_MD
+  structure: 内联 system.data（同 L1 蓝本 4 原子 FCC，a=4.0495 Å）
+  truncations:
+    minimize: "1000/10000 → 200/2000 步"
+    equilibration: "20000 步(10 ps) → 200 步(0.1 ps)"
+    production: 200000 步 production 整段删除（smoke 不需要）
+  timeout: 600
+  files:
+    system.data: |
+      (written by ASE)
+
+      4 atoms
+      1 atom types
+
+      0.0      4.0495000000000001  xlo xhi
+      0.0      4.0495000000000001  ylo yhi
+      0.0      4.0495000000000001  zlo zhi
+
+      Atoms # atomic
+
+           1   1                       0                       0                       0
+           2   1                 2.02475                 2.02475                       0
+           3   1                 2.02475                       0                 2.02475
+           4   1                       0                 2.02475                 2.02475
+    in.nvt: |
+      # Al FCC EAM NVT smoke（蓝本 examples/L1_Al_EAM_MD，已按 truncations 截断）
+      units           metal
+      atom_style      atomic
+      boundary        p p p
+      newton          on
+
+      read_data       system.data
+
+      pair_style      eam
+      pair_coeff      * * {{al_eam_path}}   # env 给定 Al_jnp.eam（势库无 Al_u3.eam）
+
+      min_style       cg
+      minimize        1.0e-8 1.0e-10 200 2000
+
+      velocity        all create 300.0 12345 dist gaussian
+
+      neighbor        2.0 bin
+      neigh_modify    every 1 delay 0 check yes
+      timestep        0.0005
+
+      variable        peatom equal pe/atoms
+      thermo          20
+      thermo_style    custom step temp v_peatom
+
+      fix             equil all nvt temp 300.0 300.0 0.05
+      run             200
+      unfix           equil
+  run: "{{lammps}} -in in.nvt -log lammps.log"
+  asserts:
+    - type: not_grep
+      path: lammps.log
+      pattern: '(?i)\bERROR\b'
+      note: LAMMPS 报 ERROR 时退出码也是 0 —— 必须 grep 日志判成败
+    - type: grep
+      path: lammps.log
+      pattern: 'Loop time'
+      note: 正常跑完
+    - type: regex_number
+      path: lammps.log
+      pattern: '(?m)^\s*\d+\s+[-+0-9.eE]+\s+(-?[0-9.]+(?:[eE][-+]?\d+)?)\s*$'
+      occurrence: last
+      min: -3.41
+      max: -3.31
+      note: 末行 thermo PE = -3.36 ± 0.05 eV/atom（Al_jnp.eam，2026-06 实测）
+
+- name: al_eam_minimize
+  code: lammps
+  description: Al FCC EAM 能量最小化，验证 CG minimize 与 0 K 能量基准
+  blueprint: base_templates/lammps_minimize.in + examples/L1_Al_EAM_MD
+  structure: 内联 system.data（同 al_eam_nvt）
+  truncations: {}
+  timeout: 600
+  files:
+    system.data: |
+      (written by ASE)
+
+      4 atoms
+      1 atom types
+
+      0.0      4.0495000000000001  xlo xhi
+      0.0      4.0495000000000001  ylo yhi
+      0.0      4.0495000000000001  zlo zhi
+
+      Atoms # atomic
+
+           1   1                       0                       0                       0
+           2   1                 2.02475                 2.02475                       0
+           3   1                 2.02475                       0                 2.02475
+           4   1                       0                 2.02475                 2.02475
+    in.min: |
+      # Al FCC EAM minimize smoke
+      units           metal
+      atom_style      atomic
+      boundary        p p p
+      newton          on
+
+      read_data       system.data
+
+      pair_style      eam
+      pair_coeff      * * {{al_eam_path}}
+
+      min_style       cg
+      minimize        1.0e-8 1.0e-10 1000 10000
+
+      variable        peatom equal pe/atoms
+      thermo          10
+      thermo_style    custom step temp v_peatom
+
+      run             0
+  run: "{{lammps}} -in in.min -log lammps.log"
+  asserts:
+    - type: not_grep
+      path: lammps.log
+      pattern: '(?i)\bERROR\b'
+      note: LAMMPS 报 ERROR 时退出码也是 0 —— 必须 grep 日志判成败
+    - type: grep
+      path: lammps.log
+      pattern: 'Loop time'
+      note: 正常跑完
+    - type: regex_number
+      path: lammps.log
+      pattern: '(?m)^\s*\d+\s+[-+0-9.eE]+\s+(-?[0-9.]+(?:[eE][-+]?\d+)?)\s*$'
+      occurrence: last
+      min: -3.41
+      max: -3.31
+      note: 最小化后 PE = -3.36 ± 0.05 eV/atom（Al_jnp.eam，2026-06 实测）
+
+# --- 第二波 LAMMPS（2026-07 实测收录，wsl-local）-------------------------------
+# 实测值（2026-07 wsl-local 复跑）：nve Etot 漂移 6.4e-06 eV/atom；
+# npt 末段平均压力 -92 bar；shake Bond ave 0.999998 Å；plumed COLVAR 52 行；
+# mace PE ≈ -17660 eV。
+
+- name: lammps_nve_al
+  code: lammps
+  description: Al FCC 108 原子 EAM 短 NVE，验证能量守恒（Etot 漂移）与超胞尺度
+  blueprint: base_templates/lammps_nve.in + examples/L1_Al_EAM_MD
+  structure: LAMMPS lattice/create_atoms 内建 3x3x3 FCC 常规胞（a=4.0495 Å，108 原子）
+  truncations:
+    production: "200000 步(100 ps) → 500 步(0.5 ps)"
+  timeout: 600
+  files:
+    in.nve: |
+      # Al FCC EAM NVE smoke（蓝本 base_templates/lammps_nve.in，已按 truncations 截断）
+      units           metal
+      atom_style      atomic
+      boundary        p p p
+      newton          on
+
+      # 3x3x3 FCC 常规胞 = 108 原子（a = 4.0495 Å，同 L1 蓝本）
+      lattice         fcc 4.0495
+      region          box block 0 3 0 3 0 3
+      create_box      1 box
+      create_atoms    1 box
+
+      pair_style      eam
+      pair_coeff      * * {{al_eam_path}}   # env 给定 Al_jnp.eam
+
+      min_style       cg
+      minimize        1.0e-8 1.0e-10 200 2000
+
+      velocity        all create 300.0 12345 dist gaussian
+
+      neighbor        2.0 bin
+      neigh_modify    every 1 delay 0 check yes
+      timestep        0.001               # 1 fs（无 H 体系）
+
+      thermo          50
+      thermo_style    custom step temp pe ke etotal
+
+      # 记录 NVE 初始 Etot/atom（run 0 触发热力学计算后取值）
+      run             0
+      variable        e0 equal $(etotal/atoms)
+
+      fix             nve all nve
+      run             500
+      unfix           nve
+
+      # NVE 判据：Etot 漂移（蓝本要求 < 1 meV/atom/ps；smoke 阈值 0.01 eV/atom）
+      # 注意：LAMMPS equal 变量绝对值函数是 abs()，没有 fabs()
+      variable        edrift equal abs(etotal/atoms-v_e0)
+      print           "ETOT_DRIFT_EV_PER_ATOM ${edrift}"
+  run: "{{lammps}} -in in.nve -log lammps.log"
+  asserts:
+    - type: not_grep
+      path: lammps.log
+      pattern: '(?i)\bERROR\b'
+      note: LAMMPS 报 ERROR 时退出码也是 0 —— 必须 grep 日志判成败
+    - type: grep
+      path: lammps.log
+      pattern: 'Loop time'
+      note: 正常跑完
+    - type: regex_number
+      path: lammps.log
+      pattern: 'ETOT_DRIFT_EV_PER_ATOM\s+([0-9.eE+-]+)'
+      occurrence: last
+      min: 0
+      max: 0.01
+      note: NVE 500 步 Etot 漂移 < 0.01 eV/atom（2026-07 实测 6.4e-06）
+
+- name: lammps_npt_al
+  code: lammps
+  description: Al FCC 108 原子 EAM 短 NPT（300K / 0 bar iso），验证压强调节趋向目标值
+  blueprint: base_templates/lammps_md.in (NPT stage) + examples/L3_Al_EAM_NPT
+  structure: 同 lammps_nve_al（lattice/create_atoms 3x3x3 FCC，108 原子）
+  truncations:
+    equilibration: "20000 步(10 ps) → 500 步(1 ps，dt=2 fs)"
+    production: 200000 步 production 整段删除（smoke 不需要）
+  timeout: 600
+  files:
+    in.npt: |
+      # Al FCC EAM NPT smoke（蓝本 base_templates/lammps_md.in NPT stage，已按 truncations 截断）
+      units           metal
+      atom_style      atomic
+      boundary        p p p
+      newton          on
+
+      lattice         fcc 4.0495
+      region          box block 0 3 0 3 0 3
+      create_box      1 box
+      create_atoms    1 box
+
+      pair_style      eam
+      pair_coeff      * * {{al_eam_path}}
+
+      min_style       cg
+      minimize        1.0e-8 1.0e-10 200 2000
+
+      velocity        all create 300.0 12345 dist gaussian
+
+      neighbor        2.0 bin
+      neigh_modify    every 1 delay 0 check yes
+      # 2 fs（无 H 体系安全）：500 步 = 1 ps，给 barostat 足够弛豫时间
+      #（0 K 平衡晶格直接升温到 300 K 初压 ~+16 kbar，0.5 ps 内弛豫不完）
+      timestep        0.002
+
+      thermo          50
+      thermo_style    custom step temp press pe etotal vol
+
+      # 末段压力滑窗平均：每 100 步输出一次（10 样本/窗口），
+      # run 结束时 f_pav = 最后 100 步平均压力（bar）；
+      # 单一标量输入的 fix ave/time 产出全局标量，用 f_pav 而非 f_pav[1]
+      variable        p equal press
+      fix             pav all ave/time 10 10 100 v_p
+
+      # Tdamp = 0.1 ps，Pdamp = 1.0 ps（蓝本推荐区间 50-100x / 500-1000x dt 内）
+      fix             npt all npt temp 300.0 300.0 0.1 iso 0.0 0.0 1.0
+      run             500
+      unfix           npt
+
+      variable        plast equal f_pav
+      print           "P_AVG_LAST100_BAR ${plast}"
+  run: "{{lammps}} -in in.npt -log lammps.log"
+  asserts:
+    - type: not_grep
+      path: lammps.log
+      pattern: '(?i)\bERROR\b'
+      note: LAMMPS 报 ERROR 时退出码也是 0 —— 必须 grep 日志判成败
+    - type: grep
+      path: lammps.log
+      pattern: 'Loop time'
+      note: 正常跑完
+    - type: regex_number
+      path: lammps.log
+      pattern: 'P_AVG_LAST100_BAR\s+(-?[0-9.eE+]+)'
+      occurrence: last
+      min: -3000
+      max: 3000
+      note: 末段（最后 100 步滑窗）平均压力趋向 0 bar，|P| < 3000 bar（2026-07 实测 -92 bar）
+
+- name: lammps_shake_spc
+  code: lammps
+  description: SPC/E 水 27 分子 NVT（2 fs + SHAKE 刚性约束），验证分子拓扑势与 shake 链路
+  blueprint: modifiers/lammps/fix_shake.snip + references/lammps.md（刚性水段落）
+  structure: 内联 gen_spce.py（setup_cmds 里 python3 生成 spce.data：27 分子 3x3x3 网格+小抖动，盒 9.32 Å≈1 g/cm3，SPC/E 几何 O-H=1.0 Å / 角 109.47°，电荷 O=-0.8476 / H=+0.4238）
+  truncations:
+    equilibration: "生产 ns 级 → 500 步(1 ps)"
+    cutoff: "9-10 Å → 4.3 Å（盒 9.32 Å，cutoff+skin 必须 < 盒长一半 4.66 Å）"
+  timeout: 600
+  setup_cmds:
+    - "python3 gen_spce.py"
+  files:
+    gen_spce.py: |
+      #!/usr/bin/env python3
+      # gen_spce.py — 生成 SPC/E 水盒 spce.data（smoke 用，确定性 seed）
+      # 27 分子（3x3x3 网格 + 小抖动），盒 9.32 Å ≈ 1 g/cm3
+      # SPC/E 刚性几何：O-H = 1.0 Å，H-O-H = 109.47°
+      # SPC/E 电荷：O = -0.8476 e，H = +0.4238 e
+      import math
+      import random
+
+      random.seed(20260619)
+
+      L = 9.32            # 盒边长 (Å)：27 分子 ~1 g/cm3
+      NGRID = 3           # 3x3x3 = 27 分子
+      ROH = 1.0           # SPC/E O-H 键长 (Å)
+      ANG = math.radians(109.47)
+      QO, QH = -0.8476, 0.4238
+      MO, MH = 15.9994, 1.008
+
+
+      def unit(v):
+          n = math.sqrt(v[0] ** 2 + v[1] ** 2 + v[2] ** 2)
+          return [v[0] / n, v[1] / n, v[2] / n]
+
+
+      waters = []
+      sp = L / NGRID
+      for i in range(NGRID):
+          for j in range(NGRID):
+              for k in range(NGRID):
+                  o = [((i + 0.5) * sp + random.uniform(-0.15, 0.15)) % L,
+                       ((j + 0.5) * sp + random.uniform(-0.15, 0.15)) % L,
+                       ((k + 0.5) * sp + random.uniform(-0.15, 0.15)) % L]
+                  u1 = unit([random.gauss(0.0, 1.0) for _ in range(3)])
+                  t = unit([random.gauss(0.0, 1.0) for _ in range(3)])
+                  d = sum(t[m] * u1[m] for m in range(3))
+                  u2v = unit([t[m] - d * u1[m] for m in range(3)])
+                  u2 = [math.cos(ANG) * u1[m] + math.sin(ANG) * u2v[m]
+                        for m in range(3)]
+                  h1 = [(o[m] + ROH * u1[m]) % L for m in range(3)]
+                  h2 = [(o[m] + ROH * u2[m]) % L for m in range(3)]
+                  waters.append((o, h1, h2))
+
+      nmol = len(waters)
+      with open("spce.data", "w") as f:
+          f.write("# SPC/E water 27 molecules, by gen_spce.py (input_build smoke)\n\n")
+          f.write("%d atoms\n%d bonds\n%d angles\n\n" % (3 * nmol, 2 * nmol, nmol))
+          f.write("2 atom types\n1 bond types\n1 angle types\n\n")
+          f.write("0.0 %.4f xlo xhi\n0.0 %.4f ylo yhi\n0.0 %.4f zlo zhi\n\n" % (L, L, L))
+          f.write("Masses\n\n1 %.4f  # O\n2 %.4f  # H\n\n" % (MO, MH))
+          f.write("Atoms # full\n\n")
+          aid = 0
+          for mol, (o, h1, h2) in enumerate(waters, start=1):
+              aid += 1
+              f.write("%d %d 1 %.4f %.6f %.6f %.6f\n"
+                      % (aid, mol, QO, o[0], o[1], o[2]))
+              aid += 1
+              f.write("%d %d 2 %.4f %.6f %.6f %.6f\n"
+                      % (aid, mol, QH, h1[0], h1[1], h1[2]))
+              aid += 1
+              f.write("%d %d 2 %.4f %.6f %.6f %.6f\n"
+                      % (aid, mol, QH, h2[0], h2[1], h2[2]))
+          f.write("\nBonds\n\n")
+          bid = 0
+          for m in range(nmol):
+              base = 3 * m + 1
+              bid += 1
+              f.write("%d 1 %d %d\n" % (bid, base, base + 1))
+              bid += 1
+              f.write("%d 1 %d %d\n" % (bid, base, base + 2))
+          f.write("\nAngles\n\n")
+          for m in range(nmol):
+              base = 3 * m + 1
+              f.write("%d 1 %d %d %d\n" % (m + 1, base + 1, base, base + 2))
+
+      print("spce.data: %d waters written" % nmol)
+    in.shake: |
+      # SPC/E 水 NVT + SHAKE smoke（27 分子 / 盒 9.32 Å；结构由 gen_spce.py 生成）
+      units           real                # kcal/mol, Å, fs, K, atm
+      atom_style      full
+      boundary        p p p
+      newton          on
+
+      read_data       spce.data
+
+      # SPC/E：只有 O-O LJ（ε=0.1553 kcal/mol, σ=3.166 Å），H 无 LJ
+      # 注意：盒 9.32 Å → cutoff+skin 必须 < 盒长一半 4.66 Å，
+      # 故 smoke 用 4.3 Å cutoff + 0.3 Å skin（生产应加大盒子用 9-10 Å cutoff）
+      pair_style      lj/cut/coul/cut 4.3
+      pair_coeff      1 1 0.1553 3.166
+      pair_coeff      1 2 0.0 0.0
+      pair_coeff      2 2 0.0 0.0
+
+      # SHAKE 约束几何（r_OH=1.0 Å, 角=109.47°），力常数只影响约束前的瞬态
+      bond_style      harmonic
+      bond_coeff      1 450.0 1.0
+      angle_style     harmonic
+      angle_coeff     1 55.0 109.47
+
+      # 水分子内 1-2/1-3 近邻排除 LJ 与库仑
+      special_bonds   lj 0.0 0.0 0.0 coul 0.0 0.0 0.0
+
+      neighbor        0.3 bin
+      neigh_modify    every 1 delay 0 check yes
+
+      velocity        all create 300.0 12345 dist gaussian mom yes rot yes
+
+      # fix shake 必须在所有附加力 fix 之后（modifiers/lammps/fix_shake.snip）；
+      # 第 3 个参数是 stats 打印频率，0 = 不打印（断言需要 stats，故给 10）
+      fix             sh all shake 1.0e-4 20 10 b 1 a 1
+      fix             nvt all nvt temp 300.0 300.0 100.0
+
+      timestep        2.0                 # 2 fs：SHAKE 刚性水才合法（fix_shake.snip）
+      thermo          50
+      thermo_style    custom step temp pe ke etotal press
+
+      run             500
+  run: "{{lammps}} -in in.shake -log lammps.log"
+  asserts:
+    - type: not_grep
+      path: lammps.log
+      pattern: '(?i)\bERROR\b'
+      note: LAMMPS 报 ERROR 时退出码也是 0 —— 必须 grep 日志判成败
+    - type: grep
+      path: lammps.log
+      pattern: 'Loop time'
+      note: 正常跑完
+    - type: regex_number
+      path: lammps.log
+      pattern: '(?m)^Bond:\s+1\s+(\S+)\s+\S+\s+\d+\s*$'
+      occurrence: last
+      min: 0.999
+      max: 1.001
+      note: "SHAKE stats 键 ave = 1.0 ± 0.001 Å（22Jul2025 起格式为 'Bond: <type> <ave> <delta> <count>'；2026-07 实测 0.999998）"
+
+- name: lammps_plumed_ar
+  code: lammps
+  description: Ar LJ 108 原子 NVT + fix plumed（DISTANCE CV + PRINT stride 10），验证 PLUMED 接口与 COLVAR 输出
+  blueprint: base_templates/lammps_plumed.in + examples/L8_lammps_plumed
+  structure: LAMMPS lattice/create_atoms 3x3x3 FCC Ar（a=5.256 Å，108 原子）
+  truncations:
+    production: "100000 步 → 500 步(1 ps)"
+  timeout: 600
+  files:
+    in.plumed: |
+      # Ar LJ + PLUMED smoke（蓝本 examples/L8_lammps_plumed，已按 truncations 截断）
+      units           metal
+      atom_style      atomic
+      boundary        p p p
+      newton          on
+
+      # 3x3x3 FCC 常规胞 = 108 原子（Ar a = 5.256 Å）
+      lattice         fcc 5.256
+      region          box block 0 3 0 3 0 3
+      create_box      1 box
+      create_atoms    1 box
+      mass            1 39.948
+
+      pair_style      lj/cut 8.5
+      pair_coeff      1 1 0.0104 3.405   # Ar LJ（ε eV, σ Å）
+
+      velocity        all create 100.0 12345 dist gaussian
+
+      neighbor        2.0 bin
+      neigh_modify    every 1 delay 0 check yes
+      timestep        0.002
+
+      fix             nvt all nvt temp 100.0 100.0 0.1
+
+      # PLUMED 接口：CV 与偏置都在 plumed.dat；同一时刻只允许一个 fix plumed
+      fix             pl all plumed plumedfile plumed.dat outfile plumed.out
+
+      thermo          50
+      thermo_style    custom step temp pe etotal press
+
+      run             500
+    plumed.dat: |
+      # plumed.dat（同 L8 蓝本）：DISTANCE CV + PRINT stride 10
+      d1: DISTANCE ATOMS=1,2
+      PRINT ARG=d1 FILE=COLVAR STRIDE=10
+  run: "{{lammps_full}} -in in.plumed -log lammps.log"
+  asserts:
+    - type: not_grep
+      path: lammps.log
+      pattern: '(?i)\bERROR\b'
+      note: LAMMPS 报 ERROR 时退出码也是 0 —— 必须 grep 日志判成败
+    - type: grep
+      path: lammps.log
+      pattern: 'Loop time'
+      note: 正常跑完
+    - type: file_exists
+      path: COLVAR
+      min_size: 1
+      note: COLVAR 文件非空
+    - type: grep
+      path: COLVAR
+      pattern: '(?m)(?:^\s*\d+\.\d+\s+\S+.*\n){41}'
+      note: COLVAR 数据行 > 40（500 步 / stride 10 = 51 行；41 个连续数据行作判据，2026-07 实测共 52 行含表头）
+
+- name: lammps_mace_3bpa
+  code: lammps
+  description: MACE（ML-MACE 包）驱动 3BPA 分子 50 步 NVT，验证 MACE 模型加载与能量输出
+  blueprint: base_templates/lammps_mlff.in（pair_style mace 段）
+  structure: 内联 3bpa.data（同 ~/macetest 实测文件，OVITO 新 header 格式；3BPA 分子 27 原子 = C12 H12 N2 O1，Masses 顺序 C/H/O/N 对应 pair_coeff）
+  truncations:
+    production: "1000 步 → 50 步"
+    dump: 轨迹输出整段删除（smoke 不需要）
+  timeout: 1800
+  files:
+    3bpa.data: |
+      # LAMMPS data file written by OVITO Basic 3.15.0
+
+      27 atoms
+      4 atom types
+
+      50.0 0.0 0.0 avec
+      0.0 50.0 0.0 bvec
+      0.0 0.0 50.0 cvec
+      0.0 0.0 0.0 abc origin
+
+      Masses
+
+      1 12.0107  # C
+      2 1.00794  # H
+      3 15.9994  # O
+      4 14.0067  # N
+
+      Atoms  # atomic
+
+      1 1 1.38963128 1.3088127 -1.8480734
+      2 1 0.25134028 1.61695797 -1.17378268
+      3 1 2.34174165 2.30279245 -2.05237245
+      4 2 1.74670811 0.30770268 -2.08813647
+      5 1 0.05520299 2.95681402 -0.72831891
+      6 3 -0.81096017 0.83736826 -0.9180296
+      7 4 -1.10099896 3.26937222 -0.10832467
+      8 4 0.91391981 3.92808926 -0.99610811
+      9 2 -1.73558122 2.55577479 0.18972739
+      10 2 -1.19481836 4.21421525 0.12159553
+      11 1 2.07766676 3.62803433 -1.63042725
+      12 2 2.81650095 4.38833396 -1.67628005
+      13 2 3.23433192 2.10381485 -2.63100063
+      14 1 -0.57931678 -0.63039174 -0.91326348
+      15 1 -1.77506852 -1.2832764 -0.40022312
+      16 2 0.20195626 -0.9770142 -0.35217348
+      17 2 -0.31077873 -0.89430482 -2.04282024
+      18 1 -3.00526392 -1.38331587 -1.1383959
+      19 1 -1.88488065 -1.72681611 0.94414745
+      20 1 -4.15739837 -2.00672026 -0.71479091
+      21 2 -2.95735117 -1.01520162 -2.24735924
+      22 1 -4.19469156 -2.42753431 0.61887066
+      23 2 -5.04818305 -2.24955496 -1.33679401
+      24 1 -3.08464301 -2.2780904 1.38882121
+      25 2 -5.07725553 -2.9629221 1.05906295
+      26 2 -3.24228124 -2.56751763 2.40845989
+      27 2 -1.09224915 -1.37255578 1.6816082
+    in.mace: |
+      # MACE 3BPA 短 NVT smoke（蓝本 base_templates/lammps_mlff.in）
+      units           metal
+      atom_style      atomic
+      atom_modify     map yes
+      newton          on
+      dimension       3
+      boundary        p p p
+
+      read_data       3bpa.data
+
+      # MACE（ML-MACE 包）：C H O N 顺序必须严格对应 data 文件 Masses 的 Type 1-4
+      pair_style      mace no_domain_decomposition
+      pair_coeff      * * {{mace_model_path}} C H O N
+
+      neighbor        2.0 bin
+      neigh_modify    delay 0 every 1 check yes
+
+      thermo          10
+      thermo_style    custom step temp pe ke etotal press
+      thermo_modify   flush yes
+
+      velocity        all create 300.0 12345
+      fix             nvt all nvt temp 300.0 300.0 0.05
+      timestep        0.0005              # 0.5 fs
+
+      run             50
+  run: "{{lammps_full}} -in in.mace -log lammps.log"
+  asserts:
+    - type: not_grep
+      path: lammps.log
+      pattern: '(?i)\bERROR\b'
+      note: LAMMPS 报 ERROR 时退出码也是 0 —— 必须 grep 日志判成败
+    - type: grep
+      path: lammps.log
+      pattern: 'Loop time'
+      note: 正常跑完
+    - type: regex_number
+      path: lammps.log
+      pattern: '(?m)^\s*\d+\s+[-+0-9.eE]+\s+(-?[0-9.]+(?:[eE][-+]?\d+)?)\s+[-+0-9.eE]+\s+[-+0-9.eE]+\s+[-+0-9.eE]+\s*$'
+      occurrence: last
+      min: -18000
+      max: -17000
+      note: 末行 thermo PE 有限值（27 原子 3BPA，2026-07 实测约 -17660 eV，区间 ±340 容忍版本差）

@@ -1,0 +1,189 @@
+{
+  "version": 1,
+  "description": "Task -> base template -> applicable modifiers routing table for input_build. Machine-readable routing index enforced by tests/test_template_index.py and summarized by SKILL.md 'Template & Modifier Routing'. NOT a single source of truth: parameter rules also live in SKILL.md, base templates, modifiers, references/ and scripts/validate_input.py; where sources disagree, the stricter rule wins and the disagreement is a bug.",
+  "semantics": {
+    "application": "Start from the base template, then overlay modifiers in listed order. On keyword collision, the LATER modifier wins. Modifiers are INCAR snippets for AI-guided overlay (v1); they are not applied by a script.",
+    "post_condition": "After overlaying modifiers, the result MUST pass scripts/validate_input.py with zero ERROR findings."
+  },
+  "tasks": {
+    "vasp": {
+      "relax":        {"template": "vasp_relax.incar",        "modifiers": ["ivdw", "dipole", "magnetic", "dftu", "solvation", "efield", "soc", "metagga"], "notes": "Never overlay the semiconductor modifier here: ISMEAR=-5 (tetrahedron) is for static SCF/DOS with a dense automatic k-mesh, not for relax/MD"},
+      "scf":          {"template": "vasp_scf.incar",          "modifiers": ["ivdw", "dipole", "magnetic", "semiconductor", "dftu", "solvation", "efield", "soc", "metagga"]},
+      "md":           {"template": "vasp_md.incar",           "modifiers": ["dipole", "magnetic", "ivdw", "dftu", "solvation", "efield"]},
+      "slowgrowth":   {"template": "vasp_slowgrowth.incar",  "modifiers": ["dipole", "magnetic", "ivdw", "dftu", "solvation", "efield"], "notes": "SG-AIMD two-stage protocol: equilibration (INCREM=0, LBLUEOUT=.FALSE.) then growth (INCREM!=0, LBLUEOUT=.TRUE.), sharing one ICONST. MDALGO must be 1 or 2 (Langevin MDALGO=3 unsupported). Generate ICONST and both stage INCARs with scripts/iconst_helper.py render --emit-incar; see references/vasp.md 'Slow-growth AIMD'"},
+      "dos":          {"template": "vasp_dos.incar",          "modifiers": ["semiconductor", "magnetic", "dftu", "soc", "metagga"]},
+      "band":         {"template": "vasp_band.incar",         "modifiers": ["semiconductor", "magnetic", "dftu", "soc", "metagga"]},
+      "freq":         {"template": "vasp_freq.incar",         "modifiers": ["dipole", "ivdw", "magnetic"]},
+      "phonon":       {"template": "vasp_phonopy.incar",      "modifiers": ["semiconductor", "magnetic", "dftu", "metagga"], "notes": "Single-point forces for phonopy finite displacements; distinct from the freq task (IBRION=5 molecular vibrations)"},
+      "neb":          {"template": "vasp_neb.incar",          "modifiers": ["ivdw", "dipole", "magnetic", "dftu", "solvation", "efield"]},
+      "bader":        {"template": "vasp_bader.incar",        "modifiers": ["magnetic", "dftu"]},
+      "hse":          {"template": "vasp_hse.incar",          "modifiers": ["semiconductor", "magnetic"]},
+      "dftu":         {"template": "vasp_dftu.incar",         "modifiers": ["dftu", "magnetic", "ivdw", "dipole", "solvation"]},
+      "workfunction": {"template": "vasp_workfunction.incar", "modifiers": ["dipole", "dftu", "magnetic", "solvation"]},
+      "elf":          {"template": "vasp_elf.incar",          "modifiers": ["dftu", "magnetic"]},
+      "optics":       {"template": "vasp_optics.incar",       "modifiers": ["optics", "semiconductor"]},
+      "dielectric":   {"template": "vasp_lepsilon.incar",     "modifiers": ["semiconductor", "dftu", "magnetic"]}
+    },
+    "lammps": {
+      "md":       {"template": "lammps_md.in",       "modifiers": ["efield_lammps", "shake_lammps", "analysis_rdf_msd", "analysis_hbond", "ensemble_langevin", "temp_ramp", "dump_full", "wall_slab"], "notes": "multi-stage: minimize -> slow heating -> NVT -> NPT(optional) -> production; consult references/lammps_best_practices.md"},
+      "npt":      {"template": "lammps_md.in",      "modifiers": ["efield_lammps", "shake_lammps", "analysis_rdf_msd", "analysis_hbond", "temp_ramp", "dump_full"], "notes": "uses lammps_md.in with NPT stage uncommented"},
+      "nve":      {"template": "lammps_nve.in",      "modifiers": ["shake_lammps", "analysis_rdf_msd", "analysis_hbond", "dump_full"]},
+      "minimize": {"template": "lammps_minimize.in", "modifiers": []},
+      "mlff":     {"template": "lammps_mlff.in",     "modifiers": ["efield_lammps", "shake_lammps", "analysis_rdf_msd", "analysis_hbond", "ensemble_langevin", "dump_full", "wall_slab"], "notes": "MLFF-specific MD; model path and element order MUST come from the user"},
+      "conp":     {"template": "lammps_conp.in",     "modifiers": [], "notes": "constant-potential electrode; requires LAMMPS built with the ELECTRODE package and an /electrode kspace style"},
+      "plumed":   {"template": "lammps_plumed.in",   "modifiers": ["analysis_rdf_msd", "dump_full"], "notes": "requires the PLUMED package; only one fix plumed; its group-ID is ignored (always all)"},
+      "neb":      {"template": "lammps_neb.in",      "modifiers": [], "notes": "replica run via -partition NxM; min_style quickmin/fire only; atom_modify map required"}
+    },
+    "cp2k": {
+      "scf":          {"template": "cp2k_scf.inp",          "modifiers": []},
+      "geo_opt":      {"template": "cp2k_geo_opt.inp",      "modifiers": []},
+      "cell_opt":     {"template": "cp2k_cell_opt.inp",     "modifiers": []},
+      "md":           {"template": "cp2k_md.inp",           "modifiers": []},
+      "neb":          {"template": "cp2k_neb.inp",          "modifiers": []},
+      "band":         {"template": "cp2k_band.inp",         "modifiers": [], "notes": "BAND_STRUCTURE lives under FORCE_EVAL/DFT/PRINT, NOT &MOTION"},
+      "dos":          {"template": "cp2k_dos.inp",          "modifiers": []},
+      "phonon":       {"template": "cp2k_phonon.inp",       "modifiers": []},
+      "workfunction": {"template": "cp2k_workfunction.inp", "modifiers": []},
+      "dftu":         {"template": "cp2k_dftu.inp",         "modifiers": []},
+      "elf":          {"template": "cp2k_elf.inp",          "modifiers": []},
+      "optics":       {"template": "cp2k_optics.inp",       "modifiers": []},
+      "hirshfeld":    {"template": "cp2k_hirshfeld.inp",    "modifiers": []},
+      "metadyn":      {"template": "cp2k_metadyn.inp",      "modifiers": [], "notes": "well-tempered metadynamics; &COLVAR under FORCE_EVAL/SUBSYS + &MOTION/&FREE_ENERGY/&METADYN"}
+    }
+  },
+  "modifiers": {
+    "ivdw": {
+      "file": "ivdw.patch",
+      "apply_when": "Weak interactions: physisorption, layered materials, organic adsorbates on surfaces",
+      "overrides": ["IVDW"],
+      "conflicts": [],
+      "notes": "IVDW=12 is DFT-D3(BJ). IVDW=11 is D3 zero-damping — do not mix up."
+    },
+    "dipole": {
+      "file": "dipole.patch",
+      "apply_when": "Asymmetric slab or single-sided adsorbate with vacuum > 5 A",
+      "overrides": ["IDIPOL", "LDIPOL"],
+      "conflicts": [],
+      "notes": "IDIPOL selects the lattice-vector axis (1/2/3 = a/b/c). Requires LDIPOL=.TRUE. or the correction is inactive."
+    },
+    "magnetic": {
+      "file": "magnetic.patch",
+      "apply_when": "Fe/Co/Ni/Mn/Cr, rare earths (Ce/U/La), or radical adsorbates",
+      "overrides": ["ISPIN", "MAGMOM"],
+      "conflicts": [],
+      "notes": "Auto-enables ISPIN=2 only; magnetic ordering and MAGMOM must be confirmed with the user."
+    },
+    "semiconductor": {
+      "file": "semiconductor.patch",
+      "apply_when": "Semiconductor/insulator static SCF or DOS with a dense automatic k-mesh",
+      "overrides": ["ISMEAR", "SIGMA"],
+      "conflicts": [],
+      "notes": "ISMEAR=-5 tetrahedron. Never for relax/MD, molecules/Gamma-only, or line-mode band paths."
+    },
+    "dftu": {
+      "file": "dftu.patch",
+      "apply_when": "Strongly correlated d/f elements; the vasp_dftu task template already embeds this",
+      "overrides": ["LDAU", "LDAUTYPE", "LDAUL", "LDAUU", "LDAUJ", "LMAXMIX"],
+      "conflicts": [],
+      "notes": "LMAXMIX is mandatory: 4 for d-electrons, 6 for f-electrons. LDAUL/U/J must be per-element in POSCAR order."
+    },
+    "optics": {
+      "file": "optics.patch",
+      "apply_when": "Frequency-dependent dielectric function via LOPTICS (NSCF run)",
+      "overrides": ["LOPTICS", "CSHIFT"],
+      "conflicts": [],
+      "notes": "Never combine LOPTICS with LEPSILON (dielectric task) in one INCAR."
+    },
+    "solvation": {
+      "file": "solvation.patch",
+      "apply_when": "Aqueous electrochemistry / interface energetics with implicit water (VASPsol)",
+      "overrides": ["LSOL", "EB_K", "TAU"],
+      "conflicts": [],
+      "notes": "Requires a VASPsol-patched VASP binary; PREC=Accurate and ENCUT >= 1.3x vacuum. Workflow: vacuum run with LWAVE=.TRUE., restart with ISTART=1."
+    },
+    "efield": {
+      "file": "efield.patch",
+      "apply_when": "Slab under an applied sawtooth field (electrode polarization / potential ramp)",
+      "overrides": ["EFIELD"],
+      "conflicts": [],
+      "notes": "REQUIRES the dipole modifier (IDIPOL+LDIPOL) or the field is not applied. Ramp in ~0.1-0.2 eV/A steps across restarts."
+    },
+    "efield_lammps": {
+      "file": "lammps/fix_efield.snip",
+      "apply_when": "LAMMPS electrolyte / slab MD under a uniform applied electric field",
+      "overrides": [],
+      "conflicts": [],
+      "notes": "Snippet block (fix efield); acts on charged atoms. Not for constant-potential electrodes — use the conp task."
+    },
+    "shake_lammps": {
+      "file": "lammps/fix_shake.snip",
+      "apply_when": "Water/aqueous MD with rigid water constraints (O-H bonds + H-O-H angle); enables a 2 fs timestep",
+      "overrides": [],
+      "conflicts": [],
+      "notes": "Requires the RIGID package; small-molecule clusters only. MUST be defined after all force-adding fixes (fix efield, fix wall/...) or constraints are not satisfied."
+    },
+    "analysis_rdf_msd": {
+      "file": "lammps/analysis_rdf_msd.snip",
+      "apply_when": "Production MD needing liquid structure (RDF) or transport (MSD/diffusion) analysis",
+      "overrides": [],
+      "conflicts": [],
+      "notes": "compute rdf/msd + fix ave/time (mode vector); compute coord/atom and orientorder/atom (Q6) also available."
+    },
+    "analysis_hbond": {
+      "file": "lammps/analysis_hbond.snip",
+      "apply_when": "Water/electrolyte MD needing hydrogen-bond statistics",
+      "overrides": [],
+      "conflicts": [],
+      "notes": "LAMMPS has NO native hbond compute; RDF + post-processing (MDAnalysis/OVITO, O...O < 3.5 A, angle OOH < 30 deg)."
+    },
+    "ensemble_langevin": {
+      "file": "lammps/ensemble_langevin.snip",
+      "apply_when": "NVT via fix nve + fix langevin instead of fix nvt (choose one)",
+      "overrides": [],
+      "conflicts": [],
+      "notes": "damp ~ 100 fs (0.1 ps in units metal); seed is required."
+    },
+    "temp_ramp": {
+      "file": "lammps/temp_ramp.snip",
+      "apply_when": "Linear heating/cooling across a run (annealing, melting)",
+      "overrides": [],
+      "conflicts": [],
+      "notes": "fix nvt temp Tstart Tstop Tdamp; ramp rate = (Tstop-Tstart)/(run x timestep); typical 0.1-1 K/ps."
+    },
+    "dump_full": {
+      "file": "lammps/dump_full.snip",
+      "apply_when": "Trajectory with velocities + forces (MLFF active learning, error estimation)",
+      "overrides": [],
+      "conflicts": [],
+      "notes": "dump custom id type x y z vx vy vz fx fy fz + dump_modify sort id."
+    },
+    "wall_slab": {
+      "file": "lammps/fix_wall_slab.snip",
+      "apply_when": "Liquid/solid interface: confine liquid with soft walls instead of opening a vacuum gap",
+      "overrides": [],
+      "conflicts": [],
+      "notes": "fix wall/lj93 zlo/zhi EDGE epsilon sigma cutoff; keeps p p p + kspace unlike a vacuum gap. Define before fix shake."
+    },
+    "soc": {
+      "file": "soc.patch",
+      "apply_when": "Spin-orbit coupling: heavy elements, SOC band splitting, magnetic anisotropy",
+      "overrides": ["LSORBIT", "SAXIS"],
+      "conflicts": [],
+      "notes": "Non-collinear: NBANDS ~2x the scalar value (set explicitly); LMAXMIX 4 (d) / 6 (f); ENCUT 1.3-1.5x; moments are projections along SAXIS."
+    },
+    "metagga": {
+      "file": "metagga.patch",
+      "apply_when": "meta-GGA accuracy upgrade over PBE (r2SCAN recommended; SCAN alternative)",
+      "overrides": ["METAGGA"],
+      "conflicts": [],
+      "notes": "VASP >= 6.2.0 native (5.4.4 needs patch 4); LASPH=.TRUE. mandatory; ADDGRID=.TRUE. recommended."
+    },
+    "empty": {
+      "file": "empty.patch",
+      "apply_when": "Format reference only — do NOT apply",
+      "overrides": [],
+      "conflicts": [],
+      "notes": "Documents the required patch file format for new modifiers."
+    }
+  }
+}

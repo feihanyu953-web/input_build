@@ -1,0 +1,20 @@
+# ==============================================================================
+# Temperature Ramp Snippet (linear heating/cooling with fix nvt)
+# Apply when: annealing, melting, or equilibrating across a temperature window
+# ==============================================================================
+# USAGE:
+# - fix nvt temp Tstart Tstop Tdamp ramps the target temperature LINEARLY from
+#   Tstart to Tstop over the following `run`.
+# - Ramp rate = (Tstop - Tstart) / (run steps x timestep). Keep it gentle:
+#   a typical rate is 0.1-1 K/ps; please adjust to your system size.
+#   Example: 300 -> 600 K over 300 ps  = 1 K/ps  (units metal: run 300000 at 0.001 ps)
+# - For production at the final temperature, follow with a second run whose
+#   Tstart == Tstop.
+
+fix             ramp all nvt temp 300.0 600.0 0.1
+run             300000          # 300 ps at 1 fs -> 1 K/ps heating
+unfix           ramp
+
+# --- production block at the final temperature ---
+# fix           prod all nvt temp 600.0 600.0 0.1
+# run           200000

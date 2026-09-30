@@ -1,0 +1,147 @@
+# ==============================================================================
+# CP2K Input | Molecular Dynamics (NVT with CSVR thermostat)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+&GLOBAL
+  PROJECT     cp2k_md                 # Job name (prefix for output files)
+  RUN_TYPE    MD                      # Molecular dynamics
+  PRINT_LEVEL LOW
+&END GLOBAL
+
+# ------------------------------------------------------------------------------
+# II. FORCE EVALUATION
+# ------------------------------------------------------------------------------
+&FORCE_EVAL
+  METHOD Quickstep
+
+  &DFT
+    BASIS_SET_FILE_NAME  ./BASIS_MOLOPT
+    POTENTIAL_FILE_NAME  ./GTH_POTENTIALS
+
+    &QS
+      EPS_DEFAULT 1.0E-12
+      METHOD      GPW
+    &END QS
+
+    &MGRID
+      CUTOFF      400                 # Ry; auxiliary real-space grid cutoff for density/potential
+                                      # NOT equivalent to VASP ENCUT (orbitals use Gaussian basis);
+                                      # converge CUTOFF and REL_CUTOFF independently per system
+      REL_CUTOFF  50
+      NGRIDS      4
+    &END MGRID
+
+    &XC
+      &XC_FUNCTIONAL PBE
+      &END XC_FUNCTIONAL
+    &END XC
+
+    &SCF
+      SCF_GUESS   RESTART             # Read from prior wfn restart (faster for MD)
+      EPS_SCF     1.0E-6
+      MAX_SCF     300
+      # For MD, consider looser SCF: EPS_SCF 1.0E-5 (trade accuracy for speed)
+
+      &DIAGONALIZATION
+        ALGORITHM STANDARD
+      &END DIAGONALIZATION
+
+      &MIXING
+        METHOD   BROYDEN_MIXING
+        ALPHA    0.4
+        NBROYDEN 8
+      &END MIXING
+    &END SCF
+
+    &POISSON
+      PERIODIC XYZ
+    &END POISSON
+
+  &END DFT
+
+  &SUBSYS
+    &CELL
+      ABC     10.0 10.0 10.0
+      ALPHA_BETA_GAMMA 90.0 90.0 90.0
+      PERIODIC XYZ
+    &END CELL
+
+    # >>> USER: add one &KIND block per element type <<<
+    &KIND H
+      BASIS_SET DZVP-MOLOPT-SR-GTH
+      POTENTIAL GTH-PBE
+    &END KIND
+
+    &KIND O
+      BASIS_SET DZVP-MOLOPT-SR-GTH
+      POTENTIAL GTH-PBE
+    &END KIND
+
+    &TOPOLOGY
+      COORD_FILE_NAME    ./coord.xyz
+      COORD_FILE_FORMAT  XYZ
+    &END TOPOLOGY
+  &END SUBSYS
+
+  # --- Output control ---
+  # &FORCES belongs to FORCE_EVAL/PRINT — under DFT/PRINT CP2K aborts with
+  # "unknown subsection FORCES of section PRINT" (2026.1 runtime-verified).
+  &PRINT
+    &FORCES ON
+    &END FORCES
+  &END PRINT
+
+&END FORCE_EVAL
+
+# ------------------------------------------------------------------------------
+# III. MOLECULAR DYNAMICS
+# ------------------------------------------------------------------------------
+&MOTION
+  &MD
+    ENSEMBLE    NVT                   # NVT / NVE / NPT_I / NPT_F / LANGEVIN
+    STEPS       5000                  # Total MD steps
+    TIMESTEP    0.5                   # Integration step (fs)
+                                      # CP2K: 0.5 fs safe default
+                                      # VASP: POTIM = 1.0 (but CP2K AIMD often needs smaller)
+    TEMPERATURE 300.0                 # Target temperature (K)
+
+    &THERMOSTAT
+      TYPE        CSVR                # Canonical sampling velocity rescaling
+                                      # Alternatives: NOSE (Nosé-Hoover), GLE, AD_LANGEVIN
+      &CSVR
+        TIMECON   100.0               # Thermostat coupling constant (fs)
+                                      # 50 fs = rapid heating; 100 fs = default; 200 fs = gentle
+      &END CSVR
+    &END THERMOSTAT
+
+    # For NPT: add &BAROSTAT section (see CP2K manual)
+  &END MD
+
+  # --- Trajectory output ---
+  &PRINT
+    &TRAJECTORY
+      FORMAT     XYZ
+      &EACH
+        MD       10                   # Output every 10 steps
+      &END EACH
+    &END TRAJECTORY
+
+    &VELOCITIES ON
+      &EACH
+        MD       10
+      &END EACH
+    &END VELOCITIES
+  &END PRINT
+&END MOTION
+
+# ==============================================================================
+# END OF INPUT
+# ==============================================================================
+# Post-run notes:
+# - CP2K MD is typically slower than VASP AIMD for small systems (< 100 atoms)
+# - For larger systems or MD-intensive workflows, consider MACE/DeepMD + LAMMPS
+# - Check *.ener file for temperature stability and energy conservation (NVE)
+# ==============================================================================

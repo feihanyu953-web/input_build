@@ -1,0 +1,22 @@
+# ==============================================================================
+# Applied Electric Field Modifier (EFIELD)
+# Description: Applies a sawtooth electric field across a slab (field-effect / potential ramp)
+# Apply when: Simulating electrode polarization, field-induced adsorbate response
+# ==============================================================================
+
+# PREREQUISITE: EFIELD only works together with the dipole correction.
+# You MUST also apply the dipole modifier (IDIPOL + LDIPOL) — without it the
+# field is NOT applied (validator flags this as an ERROR).
+# Field direction follows IDIPOL (1=a, 2=b, 3=c); sign convention: EFIELD > 0
+# raises the potential on the side toward which the dipole correction points.
+
+EFIELD   = 0.1      # Field strength (eV/A); typical |0.1| - |1.0|. Ramp in steps of
+                    # ~0.1-0.2 eV/A across sequential runs (restart WAVECAR/CONTCAR),
+                    # do NOT jump straight to high fields — SCF/geometry often breaks.
+
+# --- Charged-slab alternative / complement ---
+# NELECT = <n>      # Total electron count; set below the neutral value for a
+                    # positively charged slab (compute the neutral value from a
+                    # first neutral run — do not guess). Charged slabs need an
+                    # electrostatic reference: combine with IDIPOL/LDIPOL and
+                    # report the work-function / vacuum-level alignment.

@@ -1,0 +1,121 @@
+# ==============================================================================
+# CP2K Input | TiO2 Anatase Bulk PDOS
+# Sources: CP2K DOS manual
+#          https://manual.cp2k.org/trunk/methods/electronic_structure/dos.html
+#          CP2K PDOS tutorial:
+#          https://www.cp2k.org/exercises:common:pdos
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+&GLOBAL
+  PROJECT     TiO2_anatase_dos
+  RUN_TYPE    ENERGY
+  PRINT_LEVEL LOW
+&END GLOBAL
+
+# ------------------------------------------------------------------------------
+# II. FORCE EVALUATION
+# ------------------------------------------------------------------------------
+&FORCE_EVAL
+  METHOD Quickstep
+
+  &DFT
+    BASIS_SET_FILE_NAME  ./BASIS_MOLOPT
+    POTENTIAL_FILE_NAME  ./GTH_POTENTIALS
+
+    &QS
+      EPS_DEFAULT 1.0E-12
+      METHOD      GPW
+    &END QS
+
+    &MGRID
+      CUTOFF      600
+      REL_CUTOFF  60
+      NGRIDS      4
+    &END MGRID
+
+    &XC
+      &XC_FUNCTIONAL PBE
+      &END XC_FUNCTIONAL
+    &END XC
+
+    &SCF
+      SCF_GUESS   RESTART
+      EPS_SCF     1.0E-7
+      MAX_SCF     300
+      ADDED_MOS   100
+
+      &DIAGONALIZATION
+        ALGORITHM STANDARD
+      &END DIAGONALIZATION
+
+      &MIXING
+        METHOD   BROYDEN_MIXING
+        ALPHA    0.2
+        BETA     1.5
+        NBROYDEN 8
+      &END MIXING
+
+      # TiO2 is a semiconductor; smearing optional
+      # &SMEAR
+      #   METHOD FERMI_DIRAC
+      #   ELECTRONIC_TEMPERATURE [K] 300
+      # &END SMEAR
+    &END SCF
+
+    &POISSON
+      PERIODIC XYZ
+    &END POISSON
+
+    # NOTE (2026.1 runtime-verified): &KPOINTS and &PDOS are mutually
+    # exclusive — with k-points CP2K only warns "pDOS is not implemented for
+    # k points" and writes NO PDOS files. PDOS therefore runs Gamma-only
+    # (&KPOINTS omitted); a k-mesh SCF must be a separate run if needed.
+    # &KPOINTS
+    #   SCHEME MONKHORST-PACK 4 4 4
+    # &END KPOINTS
+
+    &PRINT
+      &PDOS
+        NLUMO    -1
+        COMPONENTS
+        # DELTA_E  0.05
+        # ENERGY_ZERO FERMI
+      &END PDOS
+    &END PRINT
+
+  &END DFT
+
+  &SUBSYS
+    &CELL
+      ABC     3.784 3.784 9.515       # Anatase conventional cell (Angstrom)
+      ALPHA_BETA_GAMMA 90.0 90.0 90.0
+      PERIODIC XYZ
+    &END CELL
+
+    &KIND Ti
+      BASIS_SET DZVP-MOLOPT-SR-GTH
+      POTENTIAL GTH-PBE
+    &END KIND
+
+    &KIND O
+      BASIS_SET DZVP-MOLOPT-SR-GTH
+      POTENTIAL GTH-PBE
+    &END KIND
+
+    &TOPOLOGY
+      COORD_FILE_NAME    ./TiO2_anatase.xyz
+      COORD_FILE_FORMAT  XYZ
+    &END TOPOLOGY
+  &END SUBSYS
+
+&END FORCE_EVAL
+
+# ==============================================================================
+# END OF INPUT
+# ==============================================================================
+# Output: Ti-alpha_k*-1_*.pdos, O-alpha_k*-1_*.pdos
+# Post-process with cp2kdata or matplotlib.
+# ==============================================================================

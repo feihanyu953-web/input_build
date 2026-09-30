@@ -1,0 +1,36 @@
+# ==============================================================================
+# SG-AIMD EQUIL stage | Pt(100) + NH3 + OH proton transfer
+# Constrained MD holding xi = d(N17-H18) - d(O22-H18) at -0.736 A until the
+# temperature and the constraint force are stationary.
+# Run this stage FIRST, then restart INCAR_growth from its final geometry.
+# ==============================================================================
+SYSTEM   = Pt100_NH3_OH_SG_equil
+PREC     = Normal
+ENCUT    = 520
+ALGO     = Fast
+EDIFF    = 1E-4
+ISMEAR   = 0
+SIGMA    = 0.1
+NELM     = 200
+NELMIN   = 4
+NBANDS   = 120
+AMIX     = 0.02
+BMIX     = 1.0
+AMIN     = 0.01
+IBRION   = 0
+MDALGO   = 2
+SMASS    = 0.5
+POTIM    = 1.0
+NSW      = 4000
+TEBEG    = 330
+TEEND    = 330
+RANDOM_SEED = 12345 0 0
+INCREM   = 0
+LBLUEOUT = .FALSE.
+IDIPOL   = 3
+LDIPOL   = .TRUE.
+LASPH    = .TRUE.
+ISYM     = 0
+LWAVE    = .FALSE.
+LCHARG   = .FALSE.
+NCORE    = 4

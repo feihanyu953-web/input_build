@@ -1,0 +1,49 @@
+# ==============================================================================
+# VASP INCAR | Static SCF (Single-Point Energy)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = VASP Static SCF            # Human-readable job title
+PREC     = Normal                     # Normal precision; ENCUT manually controlled
+ENCUT    = 400                        # Plane-wave cutoff (eV); >= max ENMAX in POTCAR
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal                     # Normal Davidson/RMM-DIIS mixer
+EDIFF    = 1E-6                       # Tighter SCF convergence for static runs
+ISMEAR   = 0                          # Gaussian smearing; safe default
+SIGMA    = 0.1                        # Smearing width (eV)
+ISTART   = 0                          # Start from scratch (no WAVECAR)
+ICHARG   = 2                          # Superposition of atomic charge densities
+NELMIN   = 6                          # Min SCF steps before assessing convergence
+NELM     = 100                        # Max SCF steps
+
+# ------------------------------------------------------------------------------
+# III. ACCURACY
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.                     # Finer FFT grid for accurate PAW potentials
+LASPH    = .TRUE.                     # Non-spherical contributions in PAW
+LREAL    = .FALSE.                    # Reciprocal-space projection (accurate for static)
+
+# ------------------------------------------------------------------------------
+# IV. OUTPUT
+# ------------------------------------------------------------------------------
+LCHARG   = .TRUE.                     # Write CHGCAR (once, at run end): seeds
+                                      # ICHARG=11 non-SCF (DOS/band) and ICHARG=1 restarts
+LWAVE    = .FALSE.                    # WAVECAR is GB-scale with no default consumer:
+                                      # DOS/band read CHGCAR, not WAVECAR. Flip to
+                                      # .TRUE. only if a follow-up uses ISTART=1
+                                      # (workfunction / dielectric orbital handoff)
+LVTOT    = .FALSE.                    # Do not write LOCPOT by default (save disk)
+
+# ------------------------------------------------------------------------------
+# V. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 4                          # Orbitals per core; tune for your queue / node
+# NPAR   = 4                          # Bands parallelized over NPAR groups
+# KPAR   = 1                          # K-point parallelization; >1 only if multiple kpts
+
+# END OF INCAR

@@ -1,0 +1,157 @@
+# ==============================================================================
+# CP2K Input | Static Electric-Dipole Polarizability / Dielectric Response
+# Sources: CP2K manual FORCE_EVAL/PROPERTIES/LINRES/POLAR
+#          https://manual.cp2k.org/trunk/CP2K_INPUT/FORCE_EVAL/PROPERTIES/LINRES/POLAR.html
+#          CP2K manual FORCE_EVAL/PROPERTIES/TDDFPT/LINRES
+#          https://manual.cp2k.org/trunk/CP2K_INPUT/FORCE_EVAL/PROPERTIES/TDDFPT/LINRES.html
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+&GLOBAL
+  PROJECT     cp2k_optics             # Job name (prefix for output files)
+  RUN_TYPE    LINEAR_RESPONSE         # Required for DFPT polarizability
+  PRINT_LEVEL LOW
+&END GLOBAL
+
+# ------------------------------------------------------------------------------
+# II. FORCE EVALUATION
+# ------------------------------------------------------------------------------
+&FORCE_EVAL
+  METHOD Quickstep
+
+  &DFT
+    BASIS_SET_FILE_NAME  ./BASIS_MOLOPT
+    POTENTIAL_FILE_NAME  ./GTH_POTENTIALS
+
+    &QS
+      EPS_DEFAULT 1.0E-12
+      METHOD      GPW
+    &END QS
+
+    &MGRID
+      CUTOFF      600                 # High cutoff for smooth response
+      REL_CUTOFF  60
+      NGRIDS      4
+    &END MGRID
+
+    &XC
+      &XC_FUNCTIONAL PBE
+      &END XC_FUNCTIONAL
+
+      # For GGA functionals with DFPT response, a smooth XC derivative method
+      # is usually required. If you see "XC_DERIV method not implemented",
+      # uncomment the block below.
+      # Source: CP2K user list / manual
+      # &XC_GRID
+      #   XC_DERIV NN10_SMOOTH          # or NN50_SMOOTH, SPLINE2_SMOOTH, SPLINE3_SMOOTH
+      # &END XC_GRID
+    &END XC
+
+    &SCF
+      SCF_GUESS   RESTART             # Read from prior converged SCF (faster)
+      EPS_SCF     1.0E-7              # Tight convergence for accurate response
+      MAX_SCF     300
+
+      # Linear-response polarizability typically uses the OT solver.
+      &OT
+        MINIMIZER DIIS
+        PRECONDITIONER FULL_KINETIC
+      &END OT
+
+      &MIXING
+        METHOD   BROYDEN_MIXING
+        ALPHA    0.4
+        NBROYDEN 8
+      &END MIXING
+
+      # For metallic systems, enable smearing:
+      # &SMEAR
+      #   METHOD FERMI_DIRAC
+      #   ELECTRONIC_TEMPERATURE [K] 300
+      # &END SMEAR
+      # ADDED_MOS 10                  # NOTE: ADDED_MOS is a keyword of &SCF,
+                                      # not a section (no '&'). CP2K manual:
+                                      # FORCE_EVAL/DFT/SCF.
+    &END SCF
+
+    &POISSON
+      PERIODIC XYZ
+    &END POISSON
+
+    # --- K-point compatibility (CP2K manual methods/dft/k-points) ---
+    # This template stays GAMMA-ONLY, because:
+    #   * &OT (used above) does NOT support k-points;
+    #   * LINRES/DFPT response (&PROPERTIES/&LINRES below) does NOT support
+    #     k-points either.
+    # The two CP2K optics/response routes are mutually exclusive:
+    #   Route A (this template): Gamma-only + &OT + &LINRES/&POLAR.
+    #     For a bulk crystal this implies a converged supercell.
+    #   Route B: k-point SCF with &DIAGONALIZATION (NOT &OT) and NO &LINRES;
+    #     optical spectra then require a k-point-capable method (e.g. explicit
+    #     summation over conduction bands), which is outside this template.
+    # Do NOT uncomment a k-mesh together with &OT and &LINRES.
+    # &KPOINTS
+    #   SCHEME MONKHORST-PACK 4 4 4
+    # &END KPOINTS
+
+  &END DFT
+
+  # Static polarizability tensor via DFPT/CPKS linear response.
+  # Source: CP2K manual FORCE_EVAL/PROPERTIES/LINRES/POLAR
+  &PROPERTIES
+    &LINRES
+      EPS        1.0E-10              # Convergence of the CG response solver
+      MAX_ITER   100                  # Max CG iterations per response vector
+      PRECONDITIONER FULL_SINGLE_INVERSE
+
+      &POLAR
+        DO_RAMAN T                    # Compute electric-dipole polarizability
+      &END POLAR
+    &END LINRES
+  &END PROPERTIES
+
+  &SUBSYS
+    &CELL
+      ABC     10.0 10.0 10.0
+      ALPHA_BETA_GAMMA 90.0 90.0 90.0
+      PERIODIC XYZ
+    &END CELL
+
+    # >>> USER: add one &KIND block per element type <<<
+    &KIND Si
+      BASIS_SET DZVP-MOLOPT-SR-GTH
+      POTENTIAL GTH-PBE
+    &END KIND
+
+    &TOPOLOGY
+      COORD_FILE_NAME    ./coord.xyz
+      COORD_FILE_FORMAT  XYZ
+    &END TOPOLOGY
+  &END SUBSYS
+
+&END FORCE_EVAL
+
+# ==============================================================================
+# END OF INPUT
+# ==============================================================================
+# Post-processing:
+# 1. CP2K prints the static polarizability tensor (alpha) in the output.
+# 2. The ion-clamped dielectric constant can be derived from polarizability
+#    and cell volume; CP2K does not write a single DIELECTRIC keyword.
+# 3. For frequency-dependent optical absorption, use LR-TDDFT or real-time
+#    propagation (outside the scope of this Type A template).
+#
+# Important caveats:
+# - This template computes static polarizability only.
+# - Gamma-only: &OT and &LINRES/DFPT are both incompatible with k-points
+#   (CP2K manual methods/dft/k-points). For bulk crystals converge the
+#   supercell size instead of adding a k-mesh.
+# - Hybrid functionals / HF are not supported by this DFPT route.
+# - Large systems may need a larger MAX_ITER or FULL_ALL preconditioner.
+#
+# CP2K vs VASP quick reference:
+# - &PROPERTIES / &LINRES / &POLAR  <=>  LEPSILON (static dielectric tensor)
+# - DO_RAMAN polarizability         <=>  ion-clamped dielectric response
+# ==============================================================================

@@ -1,0 +1,64 @@
+# ==============================================================================
+# VASP INCAR | Vibrational Frequency (Finite-Difference)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = VASP Frequency Calc        # Human-readable job title
+PREC     = Accurate                 # Force-sensitive calc; auto-adds ADDGRID + LREAL opt
+ENCUT    = 400                        # Plane-wave cutoff (eV); >= max ENMAX in POTCAR
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal                     # Normal Davidson/RMM-DIIS mixer
+EDIFF    = 1E-6                       # Tight SCF convergence for accurate forces / Hessian
+ISMEAR   = 0                          # Gaussian smearing
+SIGMA    = 0.1                        # Smearing width (eV); for an isolated small
+                                      # molecule in vacuum use SIGMA = 0.01-0.05
+                                      # (same guidance as the relax template)
+NELMIN   = 6                          # Min SCF steps before assessing convergence
+NELM     = 100                        # Max SCF steps
+
+# ------------------------------------------------------------------------------
+# III. FREQUENCY SETTINGS
+# ------------------------------------------------------------------------------
+IBRION   = 5                          # Finite-differences for Hessian (selective mode)
+NSW      = 1                          # REQUIRED: IBRION=5/6 needs NSW>0, else VASP does a
+                                      # static SCF only and never enters the finite-difference
+                                      # Hessian/frequency workflow (vasp.at/wiki/IBRION)
+NFREE    = 2                          # 2 displacements per direction (central difference)
+POTIM    = 0.015                      # Displacement amplitude (A); standard for vib. calc
+NWRITE   = 1                          # Write OUTCAR with forces (needed for post-processing)
+ISIF     = 2                          # Relax ions only; fix cell shape / volume
+ISYM     = 0                          # Disable symmetry; frequency calc requires explicit displacements
+
+# Isolated small molecule in vacuum: a dipole correction (IDIPOL=4 + LDIPOL=.TRUE.)
+# reduces spurious translational/rotational imaginary modes (the 6 near-zero modes
+# come out numerically cleaner); needs a sufficiently large vacuum gap.
+# IDIPOL   = 4
+# LDIPOL   = .TRUE.
+
+# ------------------------------------------------------------------------------
+# IV. ACCURACY
+# ------------------------------------------------------------------------------
+ADDGRID  = .TRUE.                     # Finer FFT grid for accurate forces
+LASPH    = .TRUE.                     # Non-spherical contributions in PAW
+
+# ------------------------------------------------------------------------------
+# V. OUTPUT (written once at run end)
+# ------------------------------------------------------------------------------
+LWAVE    = .FALSE.                    # End-of-run files reflect only the LAST
+LCHARG   = .FALSE.                    # displacement; frequencies come from OUTCAR
+
+# ------------------------------------------------------------------------------
+# VI. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 4                          # Orbitals per core; tune for your queue / node
+# NPAR   = 4                          # Bands parallelized over NPAR groups
+# KPAR   = 1                          # K-point parallelization; >1 only if multiple kpts
+# Small systems (isolated molecule / tiny cell): set OMP_NUM_THREADS=2 in the
+# job environment — too many OpenMP threads overload/slow small workloads.
+
+# END OF INCAR

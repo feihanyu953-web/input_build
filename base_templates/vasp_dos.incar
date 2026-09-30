@@ -1,0 +1,64 @@
+# ==============================================================================
+# VASP INCAR | DOS / PDOS (Non-SCF)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+SYSTEM   = VASP DOS PDOS              # Human-readable job title
+
+# !!! PREC CHAIN CONSISTENCY (ICHARG=11 re-reads the SCF CHGCAR) !!!
+# ICHARG=11 re-reads the CHGCAR written by the preceding SCF run; the stored
+# FFT grid must match this run's grid, and PREC controls the grid. A PREC
+# mismatch between SCF and this run aborts with "charge density could not be
+# read" (runtime-verified on VASP 6.5.1: PREC=Accurate SCF -> PREC=Normal DOS
+# refused to run). Keep PREC identical across the SCF -> DOS chain. Note the
+# shipped templates differ: vasp_scf/vasp_dos = Normal while
+# vasp_elf/vasp_workfunction = Accurate — align whichever chain you actually
+# run (rerun the SCF with the same PREC, or edit this tag to match the
+# existing CHGCAR).
+PREC     = Normal                     # Normal precision; ENCUT manually controlled
+ENCUT    = 400                        # Plane-wave cutoff (eV); >= max ENMAX in POTCAR
+
+# ------------------------------------------------------------------------------
+# II. ELECTRONIC SCF
+# ------------------------------------------------------------------------------
+ALGO     = Normal                     # Normal Davidson/RMM-DIIS mixer
+EDIFF    = 1E-6                       # Tight SCF convergence for accurate DOS
+ISMEAR   = -5                         # Tetrahedron method (requires automatic k-mesh)
+SIGMA    = 0.05                       # Ignored when ISMEAR=-5 (tetrahedron); kept for safety
+ISTART   = 1                          # Read WAVECAR from prior static SCF
+ICHARG   = 11                         # Non-selfconsistent run using read-in CHGCAR
+NELM     = 60                         # With ICHARG=11 the density (Hamiltonian) is fixed, but
+                                      # eigenvalues on a dense k-mesh still need several
+                                      # iterative steps to fully diagonalize; NELM=1 with
+                                      # ALGO=Normal performs only ONE Davidson step and can
+                                      # leave eigenvalues under-converged. NELM=1 is only
+                                      # appropriate together with ALGO=None (single exact
+                                      # diagonalization of the fixed Hamiltonian).
+
+# ------------------------------------------------------------------------------
+# III. DOS SETTINGS
+# ------------------------------------------------------------------------------
+LORBIT   = 11                         # Write lm-decomposed DOS (site + l + m)
+NEDOS    = 2000                       # Number of grid points on energy axis (smooth DOS)
+EMIN     = -15                        # ABSOLUTE lower bound of the DOS energy grid (eV);
+                                      # NOT relative to E_F (vasp.at/wiki/EMIN). E_F itself
+                                      # is reported separately in DOSCAR; shift to E-E_F
+                                      # only when plotting.
+EMAX     = 10                         # ABSOLUTE upper bound of the DOS energy grid (eV)
+
+# ------------------------------------------------------------------------------
+# IV. OUTPUT
+# ------------------------------------------------------------------------------
+LCHARG   = .FALSE.                    # Do not overwrite CHGCAR
+LWAVE    = .FALSE.                    # Do not overwrite WAVECAR
+
+# ------------------------------------------------------------------------------
+# V. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# ------------------------------------------------------------------------------
+# NCORE  = 4                          # Orbitals per core; tune for your queue / node
+# NPAR   = 4                          # Bands parallelized over NPAR groups
+# KPAR   = 1                          # K-point parallelization; >1 only if multiple kpts
+
+# END OF INCAR

@@ -1,0 +1,184 @@
+# ==============================================================================
+# CP2K Input | Metadynamics (well-tempered, distance CV)
+# ==============================================================================
+# Workflow: COLVAR defined under FORCE_EVAL/SUBSYS; biasing under
+# &MOTION/&FREE_ENERGY/&METADYN. Typical values:
+#   WW      0.5-2 kcal/mol   (hill height)
+#   WTGAMMA 10-50            (well-tempered bias factor)
+#   NT_HILLS 100             (hill spawn stride, MD steps)
+# The COLVAR choice (distance, angle, coordination, ...) is system-specific —
+# the &DISTANCE example below MUST be adapted by the user.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# I. GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+&GLOBAL
+  PROJECT     cp2k_metadyn            # Job name (prefix for output files)
+  RUN_TYPE    MD                      # Metadynamics runs on top of MD
+  PRINT_LEVEL LOW
+&END GLOBAL
+
+# ------------------------------------------------------------------------------
+# II. FORCE EVALUATION
+# ------------------------------------------------------------------------------
+&FORCE_EVAL
+  METHOD Quickstep
+
+  &DFT
+    BASIS_SET_FILE_NAME  ./BASIS_MOLOPT
+    POTENTIAL_FILE_NAME  ./GTH_POTENTIALS
+
+    &QS
+      EPS_DEFAULT 1.0E-12
+      METHOD      GPW
+    &END QS
+
+    &MGRID
+      CUTOFF      400                 # Ry; converge per system (>= 600 for hybrid/meta-GGA)
+      REL_CUTOFF  50
+      NGRIDS      4
+    &END MGRID
+
+    &XC
+      &XC_FUNCTIONAL PBE
+      &END XC_FUNCTIONAL
+    &END XC
+
+    &SCF
+      SCF_GUESS   RESTART
+      EPS_SCF     1.0E-6              # keep <= 1.0E-5 for MD (energy drift otherwise)
+      MAX_SCF     300
+
+      &DIAGONALIZATION
+        ALGORITHM STANDARD
+      &END DIAGONALIZATION
+
+      &MIXING
+        METHOD   BROYDEN_MIXING
+        ALPHA    0.4
+        NBROYDEN 8
+      &END MIXING
+    &END SCF
+
+    &POISSON
+      PERIODIC XYZ
+    &END POISSON
+  &END DFT
+
+  &SUBSYS
+    &CELL
+      ABC     10.0 10.0 10.0
+      ALPHA_BETA_GAMMA 90.0 90.0 90.0
+      PERIODIC XYZ
+    &END CELL
+
+    # >>> USER: add one &KIND block per element type <<<
+    &KIND H
+      BASIS_SET DZVP-MOLOPT-SR-GTH
+      POTENTIAL GTH-PBE
+    &END KIND
+
+    &KIND O
+      BASIS_SET DZVP-MOLOPT-SR-GTH
+      POTENTIAL GTH-PBE
+    &END KIND
+
+    # --- Collective variables (REQUIRED for metadynamics) ---
+    # >>> USER: adapt the CV to your reaction coordinate <<<
+    &COLVAR
+      &DISTANCE
+        ATOMS 1 4                     # distance between atom 1 and atom 4
+      &END DISTANCE
+    &END COLVAR
+    # Other CVs: &ANGLE, &TORSION, &COORDINATION, &DISTANCE_POINT_PLANE, ...
+
+    &TOPOLOGY
+      COORD_FILE_NAME    ./coord.xyz
+      COORD_FILE_FORMAT  XYZ
+    &END TOPOLOGY
+  &END SUBSYS
+
+&END FORCE_EVAL
+
+# ------------------------------------------------------------------------------
+# III. MOTION: MD + METADYNAMICS
+# ------------------------------------------------------------------------------
+&MOTION
+  &MD
+    ENSEMBLE    NVT
+    STEPS       5000                  # lengthen for real FES convergence (1E5-1E6)
+    TIMESTEP    0.5                   # fs (<= 0.5 with H)
+    TEMPERATURE 300.0
+
+    &THERMOSTAT
+      TYPE        CSVR
+      &CSVR
+        TIMECON   100.0               # fs
+      &END CSVR
+    &END THERMOSTAT
+  &END MD
+
+  # --- Metadynamics biasing ---
+  &FREE_ENERGY
+    &METADYN
+      DO_HILLS  .TRUE.                # spawn Gaussian hills during MD
+      NT_HILLS  100                   # hill spawn stride (MD steps)
+      WW        [kcalmol] 1.5         # hill height; typical 0.5-2 kcal/mol
+
+      &METAVAR
+        SCALE     0.5                 # hill width along this CV (CV units)
+        COLVAR    1                   # index of the &COLVAR in SUBSYS (1-based)
+        # Optional reflective wall to bound the CV space:
+        # &WALL
+        #   TYPE      QUARTIC         # or QUADRATIC
+        #   POSITION  [angstrom] 3.5  # TYPE QUARTIC + POSITION is already an
+        #                             # upper wall (repels above POSITION);
+        #                             # CP2K &WALL has NO DIRECTION keyword —
+        #                             # WALL_PLUS is PLUMED UPPER_WALLS syntax
+        #   &QUARTIC
+        #     K [kcalmol] 40.0
+        #   &END QUARTIC
+        # &END WALL
+      &END METAVAR
+
+      # --- Well-tempered metadynamics (converged FES) ---
+      WELL_TEMPERED .TRUE.
+      WTGAMMA     20                  # bias factor; typical 10-50
+
+      &PRINT
+        &COLVAR
+          COMMON_ITERATION_LEVELS 3
+          &EACH
+            MD    10                  # write COLVAR every 10 MD steps
+          &END EACH
+        &END COLVAR
+        &HILLS
+          COMMON_ITERATION_LEVELS 3
+          &EACH
+            MD    10                  # write HILLS every 10 MD steps
+          &END EACH
+        &END HILLS
+      &END PRINT
+    &END METADYN
+  &END FREE_ENERGY
+
+  # --- Trajectory output ---
+  &PRINT
+    &TRAJECTORY
+      FORMAT     XYZ
+      &EACH
+        MD       10
+      &END EACH
+    &END TRAJECTORY
+  &END PRINT
+&END MOTION
+
+# ==============================================================================
+# END OF INPUT
+# ==============================================================================
+# Post-run notes:
+# - Reconstruct the free-energy surface from the HILLS file (sum_hills / plumed).
+# - Judge convergence by recrossings of the CV and time stability of the FES,
+#   not by wall-clock length alone.
+# ==============================================================================
