@@ -31,6 +31,8 @@ NSW      = 1                          # REQUIRED: IBRION=5/6 needs NSW>0, else V
 NFREE    = 2                          # 2 displacements per direction (central difference)
 POTIM    = 0.015                      # Displacement amplitude (A); standard for vib. calc
 NWRITE   = 1                          # Write OUTCAR with forces (needed for post-processing)
+                                      # Do NOT raise to >=3: with NWRITE=3 VASP prints every mode TWICE
+                                      # (raw + sqrt(mass) blocks) -> vaspkit task 501 ZPE/TS doubles
 ISIF     = 2                          # Relax ions only; fix cell shape / volume
 ISYM     = 0                          # Disable symmetry; frequency calc requires explicit displacements
 
