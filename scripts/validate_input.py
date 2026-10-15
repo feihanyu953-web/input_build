@@ -535,6 +535,27 @@ def validate(params, structure=None, max_enmax=None, linemode=False, task_overri
                 "ISMEAR=-5 during relax/MD can cause trouble (no entropy term, bad with ISIF=3); "
                 "use ISMEAR=0 with small SIGMA")
 
+    # --- KPOINTS mode vs task --------------------------------------------
+    # Observed 2026-10 on 6.4.2: VASP aborts a frequency run fed line-mode
+    # KPOINTS with "requires a uniform k mesh ... I REFUSE TO CONTINUE WITH
+    # THIS SICK JOB"; finite-difference displacements need a uniform BZ mesh.
+    # A line-mode path is legitimate ONLY for the band non-self-consistent
+    # step (ICHARG=11); on any other task it is almost always band KPOINTS
+    # left in the wrong folder.
+    if linemode:
+        if task == "freq":
+            add(ERROR, "FREQ_ON_LINEMODE",
+                "IBRION=5/6/7/8 frequency calculation on line-mode KPOINTS; "
+                "finite-difference displacements require a uniform mesh spanning "
+                "the entire BZ (VASP aborts: 'I REFUSE TO CONTINUE'). Use a "
+                "Gamma-centered uniform mesh")
+        elif task in ("static", "relax") and get_int(params, "ICHARG", 2) != 11:
+            add(WARN, "STATIC_ON_LINEMODE",
+                "line-mode KPOINTS on a plain static/relax task (ICHARG != 11); "
+                "this is usually band-path KPOINTS left in the wrong folder. A "
+                "non-self-consistent band run must set ICHARG=11; plain SCF on "
+                "a k-path is rarely intended")
+
     # --- Slow-growth AIMD (SG-AIMD) -------------------------------------
     # Official semantics: ICONST defines the collective variable (STATUS=0 =
     # constrained), INCREM grows each controlled parameter every MD step and

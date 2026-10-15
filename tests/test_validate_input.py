@@ -504,6 +504,41 @@ class TestTaskRules(Case):
             kpoints_path=kpoints)
         self.assertIn("TETRA_ON_LINEMODE", self.codes(findings))
 
+    def test_freq_on_linemode_is_error(self):
+        """IBRION=5 + line-mode KPOINTS: VASP aborts ('I REFUSE TO CONTINUE', 6.4.2)."""
+        poscar = self.write("POSCAR", AL_CART)
+        kpoints = self.write("KPOINTS", LINEMODE_KPOINTS)
+        _, findings = vi.validate_one(
+            self.incar({"IBRION": "5", "NSW": "1", "POTIM": "0.015",
+                        "ENCUT": "400"}), poscar,
+            kpoints_path=kpoints)
+        self.assertIn("FREQ_ON_LINEMODE", self.codes(findings))
+        self.assertNotIn("STATIC_ON_LINEMODE", self.codes(findings))
+
+    def test_freq_on_uniform_mesh_is_clean(self):
+        poscar = self.write("POSCAR", AL_CART)
+        _, findings = vi.validate_one(
+            self.incar({"IBRION": "5", "NSW": "1", "POTIM": "0.015",
+                        "ENCUT": "400"}), poscar)
+        self.assertNotIn("FREQ_ON_LINEMODE", self.codes(findings))
+
+    def test_static_on_linemode_warns(self):
+        """Plain static (ICHARG != 11) on a k-path: usually band KPOINTS in the wrong folder."""
+        poscar = self.write("POSCAR", AL_CART)
+        kpoints = self.write("KPOINTS", LINEMODE_KPOINTS)
+        _, findings = vi.validate_one(
+            self.incar({"NSW": "0", "ENCUT": "400"}), poscar,
+            kpoints_path=kpoints)
+        self.assertIn("STATIC_ON_LINEMODE", self.codes(findings))
+
+    def test_band_icharg11_on_linemode_no_static_warning(self):
+        poscar = self.write("POSCAR", AL_CART)
+        kpoints = self.write("KPOINTS", LINEMODE_KPOINTS)
+        _, findings = vi.validate_one(
+            self.incar({"NSW": "0", "ICHARG": "11", "ENCUT": "400"}), poscar,
+            kpoints_path=kpoints)
+        self.assertNotIn("STATIC_ON_LINEMODE", self.codes(findings))
+
     def test_tetrahedron_allowed_for_semiconductor_static(self):
         poscar = self.write("POSCAR", AL_CART)
         _, findings = vi.validate_one(

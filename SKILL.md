@@ -329,6 +329,7 @@ Before returning the generated file, verify:
 | **Dipole logic** | Detect vacuum from the largest periodic circular-gap. Missing IDIPOL/LDIPOL remains a WARN: asymmetric/polar slabs require correction; omission is acceptable only with evidence that top/bottom surfaces are symmetric and the net dipole normal to the slab is negligible | Warn if mismatch or symmetry evidence is absent |
 | **Dipole axis** | IDIPOL axis (1=a / 2=b / 3=c) must match the detected vacuum axis. `IDIPOL=4` is the all-direction correction for isolated molecules; warn for slab/wire-like inputs or a workfunction task | Warn if mismatch / non-molecular IDIPOL=4 |
 | **Smearing logic** | Task-aware: metals → ISMEAR=-1/0/1 (check entropy term); semiconductor/insulator static/DOS with dense automatic k-mesh → ISMEAR=-5 allowed (tetrahedron); molecule/Gamma-only → ISMEAR=0 small SIGMA; line-mode band → never tetrahedron | Warn on mismatch |
+| **KPOINTS mode vs task** | `FREQ_ON_LINEMODE` (ERROR): IBRION=5/6/7/8 + line-mode KPOINTS — finite-difference displacements need a uniform BZ mesh (VASP aborts "I REFUSE TO CONTINUE", observed 6.4.2); `STATIC_ON_LINEMODE` (WARN): plain static/relax with ICHARG≠11 on line-mode — usually band KPOINTS left in the wrong folder | Error / Warn |
 | **MD timestep** | POTIM ≤ 1.0 fs when H present; ≤ 2.0 fs otherwise | Cap and warn |
 | **MD ISIF** | IBRION=0 with ISIF=2 computes a useless stress tensor every step; VASP defaults MD to ISIF=0 | Warn |
 | **MD NCORE unset** | MD without explicit NCORE/NPAR defaults to NCORE=1 — grossly inefficient (measured 410 vs 10-16 s/step on 64 cores) | Warn |
@@ -505,6 +506,7 @@ LAMMPS 复杂任务可通过显式激活科学 profile 获得 L4 验收契约。
 
 - **Do NOT** generate LAMMPS potentials without user-provided paths
 - **Do NOT** set ISMEAR < 0 for molecules/Gamma-only systems or line-mode band structures; ISMEAR=-5 (tetrahedron) is allowed — and often best — for semiconductor/insulator static/DOS runs with a dense automatic k-mesh, but never for relax of unknown-character systems (use ISMEAR=0 + small SIGMA there)
+- **Do NOT** feed line-mode KPOINTS to a frequency run (IBRION=5/6) — finite-difference displacements require a uniform BZ mesh and VASP aborts ("I REFUSE TO CONTINUE", observed 6.4.2); line-mode is for the ICHARG=11 band step only
 - **Do NOT** omit LDIPOL when IDIPOL is set
 - **Do NOT** use `IDIPOL=4` for a slab/wire or workfunction input; it is the all-direction correction intended for an isolated molecule. Use `IDIPOL=1/2/3` along the surface normal. If a slab omits dipole correction, require evidence that both surfaces are symmetric and the normal net dipole is negligible
 - **Do NOT** use default ENCUT without checking POTCAR ENMAX
