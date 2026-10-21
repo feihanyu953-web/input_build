@@ -392,6 +392,7 @@ Before returning the generated file, verify:
 | **LANGEVIN_GAMMA count** | value count ≠ NTYP species (needs POSCAR; skipped otherwise) | Warn |
 | **LAMMPS 0 K velocity** | `velocity ... create 0.0` → LAMMPS aborts ("rescaling a 0.0 temperature") | Error |
 | **LAMMPS pair_coeff** | `pair_style` present but no `pair_coeff` anywhere | Error |
+| **LAMMPS coeff before style** | `bond_coeff`/`angle_coeff`/`dihedral_coeff`/`improper_coeff`/`pair_coeff` requires the matching `*_style` declared earlier (includes count; skipped for `read_restart` inputs — restart restores styles) | Error |
 | **LAMMPS integrator conflict** | same group carries more than one active time integrator (`nve`/`nvt`/`npt`/`nph`/`rigid*`) without `unfix` separation | Error |
 | **LAMMPS barostat periodicity** | `fix npt/nph` pressurizes a non-periodic `boundary` dimension (e.g. vacuum axis) | Error |
 | **LAMMPS reax/c removed** | `pair_style reax/c` no longer exists (≥ 22Jul2025) → use `reaxff` + `fix qeq/reaxff` | Error |

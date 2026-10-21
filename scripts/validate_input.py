@@ -1864,6 +1864,37 @@ def validate_lammps(cmds, raw_text, task=None, data=None):
             "pair_coeff to assign the potential parameters "
             "(docs.lammps.org/pair_coeff.html)")
 
+    # --- coeff commands require the matching style declared earlier
+    # (runtime-caught 2026-10-21: `bond_coeff` before `bond_style` aborts with
+    # "Bond_coeff command before bond_style is defined", input.cpp:1395; the
+    # same ordering holds for angle/dihedral/improper/pair coeffs). Skipped
+    # when read_restart is used: restart files restore force-field styles,
+    # so coeff commands without an explicit style declaration are legal there. ---
+    if "read_restart" not in have:
+        declared_styles = set()
+        for cmd, args in cmds:
+            if cmd == "clear":
+                declared_styles.clear()
+                continue
+            for coeff_cmd, style_cmd in (
+                ("bond_coeff", "bond_style"),
+                ("angle_coeff", "angle_style"),
+                ("dihedral_coeff", "dihedral_style"),
+                ("improper_coeff", "improper_style"),
+                ("pair_coeff", "pair_style"),
+            ):
+                if cmd == coeff_cmd and style_cmd not in declared_styles:
+                    line = " ".join([coeff_cmd, *args])[:70]
+                    add(ERROR, "LAMMPS_COEFF_BEFORE_STYLE",
+                        f"`{line}` appears with no earlier `{style_cmd}` "
+                        "declaration; real LAMMPS aborts with "
+                        f"'{coeff_cmd.capitalize()} command before "
+                        f"{style_cmd.replace('_', ' ')} is defined'. Declare "
+                        "the style first (styles may also come from an "
+                        "earlier include)")
+            if cmd.endswith("_style"):
+                declared_styles.add(cmd)
+
     # --- EAM pair_coeff arity vs file format (runtime-verified: pair_eam.cpp) ---
     # funcfl single-element files (plain `pair_style eam`) take exactly 3 args
     # (`pair_coeff * * file`, NO element symbol) — a 4th arg aborts with

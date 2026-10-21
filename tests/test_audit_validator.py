@@ -24,6 +24,8 @@ Audit-driven regression tests for the 2026-07 validator hardening
   LAMMPS (s) EAM pair_coeff arity vs file format        (pair_eam.cpp,
              runtime-verified: funcfl `pair_style eam` takes exactly 3 args,
              setfl eam/alloy / eam/fs require element symbol(s))
+         (t) bond/angle/pair coeff before the matching style -> ERROR
+             (runtime-caught 2026-10-21: input.cpp:1395)
 
 Run from the skill directory:
     python -m unittest discover -s tests -p "test_audit_validator.py" -v
@@ -363,6 +365,63 @@ class TestPairCoeff(Case):
     def test_pair_style_with_pair_coeff_clean(self):
         findings = self.lammps(LAMMPS_BASE)
         self.assertNotIn("LAMMPS_PAIR_COEFF_MISSING", self.codes(findings))
+
+
+# ---------------------------------------------------------------------------
+# (t) coeff commands require the matching style declared earlier
+#     (runtime-caught 2026-10-21: bond_coeff before bond_style aborts with
+#     "Bond_coeff command before bond_style is defined", input.cpp:1395)
+# ---------------------------------------------------------------------------
+
+BONDED_BASE = LAMMPS_BASE.replace(
+    "pair_style eam/alloy\npair_coeff * * Al.eam Al\n",
+    "pair_style lj/cut/coul/long 10.0\n"
+    "pair_coeff 1 1 0.15535 3.166\n"
+    "bond_style harmonic\n"
+    "angle_style harmonic\n"
+    "bond_coeff 1 450.0 0.957\n"
+    "angle_coeff 1 55.0 104.52\n")
+
+
+class TestCoeffBeforeStyle(Case):
+    def test_bonded_input_clean(self):
+        findings = self.lammps(BONDED_BASE)
+        self.assertNotIn("LAMMPS_COEFF_BEFORE_STYLE", self.codes(findings))
+
+    def test_bond_coeff_without_bond_style_is_error(self):
+        findings = self.lammps(BONDED_BASE.replace("bond_style harmonic\n", ""))
+        self.assertIn("LAMMPS_COEFF_BEFORE_STYLE", self.codes(findings))
+
+    def test_angle_coeff_without_angle_style_is_error(self):
+        findings = self.lammps(BONDED_BASE.replace("angle_style harmonic\n", ""))
+        self.assertIn("LAMMPS_COEFF_BEFORE_STYLE", self.codes(findings))
+
+    def test_pair_coeff_before_pair_style_is_error(self):
+        text = LAMMPS_BASE.replace(
+            "pair_style eam/alloy\npair_coeff * * Al.eam Al\n",
+            "pair_coeff * * Al.eam Al\npair_style eam/alloy\n")
+        findings = self.lammps(text)
+        self.assertIn("LAMMPS_COEFF_BEFORE_STYLE", self.codes(findings))
+
+    def test_style_from_earlier_include_satisfies_rule(self):
+        self.write("ff.inc", "bond_style harmonic\nangle_style harmonic\n")
+        text = BONDED_BASE.replace(
+            "bond_style harmonic\nangle_style harmonic\n", "include ff.inc\n")
+        findings = self.lammps(text)
+        self.assertNotIn("LAMMPS_COEFF_BEFORE_STYLE", self.codes(findings))
+
+    def test_read_restart_skips_rule(self):
+        # restart files restore force-field styles; coeff without an explicit
+        # style declaration is legal after read_restart
+        text = (
+            "units metal\n"
+            "atom_style full\n"
+            "boundary p p p\n"
+            "read_restart restart.bin\n"
+            "bond_coeff 1 450.0 0.957\n"
+            "run 1000\n")
+        findings = self.lammps(text)
+        self.assertNotIn("LAMMPS_COEFF_BEFORE_STYLE", self.codes(findings))
 
 
 # ---------------------------------------------------------------------------

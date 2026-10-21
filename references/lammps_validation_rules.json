@@ -2,6 +2,15 @@
   "schema_version": 1,
   "code": "lammps",
   "rules": {
+    "LAMMPS_COEFF_BEFORE_STYLE": {
+      "affected_evidence_level": "L1",
+      "rationale": "bond_coeff/angle_coeff/dihedral_coeff/improper_coeff/pair_coeff assign parameters to the style set by the matching *_style command; LAMMPS aborts with 'X_coeff command before X_style is defined' when the coeff appears first (observed live 2026-10-21: bond_coeff without bond_style, input.cpp:1395). Skipped for read_restart inputs because restart files restore force-field styles",
+      "rule_id": "coeff-after-style",
+      "severity": "ERROR",
+      "severity_meaning": "ERROR findings cause L1 FAIL; the input cannot pass static validation",
+      "source_reference": "SKILL.md Validation Rules table; validate_input.py validate_lammps() coeff-before-style branch",
+      "trigger_condition": "a *_coeff command appears with no earlier declaration of its matching *_style in the linearized command stream (includes expanded; cleared by `clear`)"
+    },
     "LAMMPS_DATA_UNREADABLE": {
       "affected_evidence_level": "L1",
       "rationale": "A read_data or read_restart file that cannot be read means LAMMPS cannot load the system; every physical command after it is meaningless",

@@ -34,6 +34,18 @@ read_data       system.data         # >>> USER: your electrode + electrolyte dat
 #
 # pair_style      lj/cut/coul/long 12.0
 # pair_coeff      * * ...
+#
+# BONDED solvent (atom_style full + data-file bonds/angles, e.g. rigid water):
+# declare the matching *_style BEFORE the corresponding *_coeff, or real
+# LAMMPS aborts ("Bond_coeff command before bond_style is defined",
+# runtime-verified 2026-10-21):
+# bond_style      harmonic
+# angle_style     harmonic
+# special_bonds   charmm
+# bond_coeff      1  450.0  0.957
+# angle_coeff     1  55.0  104.52
+# fix shake (constraints) must come AFTER all force-adding fixes: see
+# modifiers/lammps/fix_shake.snip
 
 # --- Long-range Coulomb: /electrode variant is MANDATORY for fix electrode/* ---
 kspace_style    pppm/electrode 1.0e-7
