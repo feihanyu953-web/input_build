@@ -335,6 +335,7 @@ Before returning the generated file, verify:
 | **MD NCORE unset** | MD without explicit NCORE/NPAR defaults to NCORE=1 — grossly inefficient (measured 410 vs 10-16 s/step on 64 cores) | Warn |
 | **MD vacuum sloshing** | Slab AIMD with total periodic vacuum > 18 Å (top+bottom combine across the boundary) + LDIPOL → SCF stalls at 100-200 iters/step; verified converging range 15-17 Å | Warn |
 | **MD mixing metal+water** | Metal slab + explicit water/ions + default AMIX=0.4 charge-sloshes and diverges; require the verified trio AMIX=0.02, BMIX=1.0, AMIN=0.01 (BMIX=0.01 is the static two-step SCF prescription — do not mix the two) | Warn if AMIX unset |
+| **Metal slab state flipping (Gamma-only)** | Dry metal slab + adsorbate on a Gamma-only k-mesh (relax/NEB/MD): SCF reports convergence but lands in different electronic basins across ionic steps — OSZICAR E0 hops by 0.1-100+ eV while EDIFF is never reported missed (Gamma E_F occupancy flip). Observed on dry Pt(111)+H/OH relax: 21% of steps flipped; the trio AMIX=0.02, BMIX=1.0, AMIN=0.01 + CHGCAR density relay cut it to 0 | Warn if AMIX unset |
 | **MD NBANDS drift** | Slab AIMD without explicit NBANDS: auto value drifts with VASP version/binary (std vs gam)/PAW variant (Pt ZVAL=10 vs Pt_pv 16 shifts occupied bands ~100); pin NBANDS ≈ 1.2-1.4 × occupied after checking POTCAR ZVAL | Warn |
 | **CG POTIM for adsorbates** | H present + IBRION=2 + slab → warn if POTIM > 0.3 | Warn |
 | **DFT+U completeness** | LDAU=.TRUE. requires LDAUTYPE, LDAUL, LDAUU, LDAUJ; recommend LMAXMIX=4 (d) / 6 (f) for reusable CHGCAR | Error for missing LDAU*; Warn for LMAXMIX in self-consistent runs |
@@ -519,6 +520,7 @@ LAMMPS 复杂任务可通过显式激活科学 profile 获得 L4 验收契约。
 - **Do NOT** submit AIMD with NCORE commented out — unset NCORE defaults to 1 and wastes an order of magnitude in wall time; always emit an explicit NCORE=4-8
 - **Do NOT** set ISIF on MD INCARs (VASP defaults IBRION=0 to ISIF=0); ISIF=2 computes a stress tensor nobody uses, every step
 - **Do NOT** run metal-slab + explicit-solvent AIMD on default mixing (AMIX=0.4) — it charge-sloshes and diverges (→ FEXCP downstream); add AMIX=0.02/BMIX=1.0/AMIN=0.01 and keep the trio intact (BMIX=0.01 belongs to static two-step SCF)
+- **Do NOT** run a Gamma-point metal-slab relax/NEB/MD with adsorbates on default AMIX=0.4 even when DRY — state flipping (SCF "converges" into a different electronic basin on some ionic steps; OSZICAR E0 jumps eV-scale with no EDIFF-miss warnings) hits dry systems too; apply AMIX=0.02/BMIX=1.0/AMIN=0.01 and keep the trio intact
 - **Do NOT** leave a slab-AIMD cell with huge vacuum "for safety": total periodic vacuum above ~18 Å makes SCF stall via charge sloshing; 15-17 Å total is the verified converging range for Pt/water interfaces
 - **Do NOT** set ISMEAR=-5 for band structure calculations on non-automatic k-meshes
 - **Do NOT** forget `&KIND` blocks for every element in CP2K (missing → crash)
