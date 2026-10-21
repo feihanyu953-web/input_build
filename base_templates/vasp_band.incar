@@ -34,8 +34,19 @@ ISYM     = 0                          # Disable symmetry; k-path breaks point-gr
 # ------------------------------------------------------------------------------
 # IV. ACCURACY
 # ------------------------------------------------------------------------------
-ADDGRID  = .TRUE.                     # Finer FFT grid for accurate potential
 LASPH    = .TRUE.                     # Non-spherical contributions in PAW
+# No ADDGRID here: it adds a large support-grid memory footprint with no
+# eigenvalue benefit (it exists for force accuracy).
+#
+# Memory budget (observed on 6.4.2): an ICHARG=11 band run allocates the
+# full-FFT-grid wavefunction projection buffer of ALL bands REPLICATED on
+# every MPI rank:  per-rank RSS ~= NPLWV x NBANDS x 16 bytes.
+# NPLWV ~= prod(L_i * sqrt(ENCUT) / 4). For a 13x13x30 A box at 500 eV this
+# is 870912 x 280 x 16 = 3.87 GB/rank -- 28 ranks = 108 GB. Total does NOT
+# shrink with rank count; cut NBANDS/ISPIN instead:
+#   - ISPIN=1 for non-magnetic systems (halves it)
+#   - NBANDS = occupied bands + 30-40 is plenty for a band plot
+#   - do not set ADDGRID; keep PREC=Normal on large vacuum boxes
 
 # ------------------------------------------------------------------------------
 # V. OUTPUT

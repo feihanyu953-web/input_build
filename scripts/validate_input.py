@@ -556,6 +556,39 @@ def validate(params, structure=None, max_enmax=None, linemode=False, task_overri
                 "non-self-consistent band run must set ICHARG=11; plain SCF on "
                 "a k-path is rarely intended")
 
+    # --- Band non-SCF memory budget ---------------------------------------
+    # Observed 2026-10 on 6.4.2 (Janus MoSSe 4x4, 30 A vacuum box): four
+    # consecutive OOM kills on 125 GB nodes. ICHARG=11 runs allocate the
+    # full-FFT-grid wavefunction projection buffer of ALL bands REPLICATED on
+    # EVERY MPI rank -- per-rank RSS ~= NPLWV x NBANDS x 16 bytes (measured
+    # 870912 x 280 x 16 = 3.87 GB/rank). The total does NOT shrink with rank
+    # count, so reducing ranks never fixes it; cut NBANDS/ISPIN/grid instead.
+    if get_int(params, "ICHARG", 2) == 11 and structure:
+        encut = get_int(params, "ENCUT", 400) or 400
+        # VASP default FFT grid: N_i ~= L_i * sqrt(ENCUT) / 4 (calibrated on
+        # 6.4.2: 13 A @ 500 eV -> 72, 30 A @ 500 eV -> 168; both within ~2%)
+        nplwv = 1
+        for v in structure.lattice:
+            nplwv *= max(int(_norm(v) * (encut ** 0.5) / 4.0), 1)
+        ispin = get_int(params, "ISPIN", 1)
+        nbands_est = get_int(params, "NBANDS", 0) or int(
+            structure.natoms * (5.7 if ispin == 2 else 5.2))
+        mb = nplwv * nbands_est * 16 / (1024 * 1024)
+        if mb > 2000:
+            add(WARN, "BAND_MEMORY_HEAVY",
+                f"ICHARG=11 band run estimated at ~{mb:.0f} MB per MPI rank "
+                f"(NPLWV~{nplwv} x NBANDS~{nbands_est} x 16 B), and this buffer "
+                f"is REPLICATED on every rank (total ~ranks x {mb:.0f} MB; "
+                f"28 ranks ~{28 * mb / 1024:.0f} GB) -- OOM risk. Remedies: "
+                "ISPIN=1 for non-magnetic systems, NBANDS = occupied + 30-40 "
+                "(a band plot needs few conduction bands), no ADDGRID, and a "
+                "modest rank count")
+        if get_bool(params, "ADDGRID"):
+            add(WARN, "ADDGRID_ON_BAND",
+                "ADDGRID on a band run adds a large support-grid memory "
+                "footprint with no eigenvalue benefit (it exists for force "
+                "accuracy); eigenvalues are unchanged without it")
+
     # --- Slow-growth AIMD (SG-AIMD) -------------------------------------
     # Official semantics: ICONST defines the collective variable (STATUS=0 =
     # constrained), INCREM grows each controlled parameter every MD step and

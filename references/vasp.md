@@ -41,6 +41,21 @@ code-specific follow-ups 的完整版;SKILL.md 仅保留高频摘要,生成 VASP
 - meta-GGA? -> `metagga` modifier (r2SCAN recommended; SCAN alternative);
   VASP ≥ 6.2.0; **LASPH mandatory**
 
+### Band-run memory (ICHARG=11) -- OOM case study
+Observed 2026-10, VASP 6.4.2: an ICHARG=11 band run of a Janus MoSSe 4x4 slab
+(13x13x30 A box, ENCUT=500, NPLWV=870912, default NBANDS=280) was OOM-killed
+four times on 125 GB nodes. Root cause: VASP allocates the full-FFT-grid
+wavefunction projection buffer of ALL bands REPLICATED ON EVERY MPI RANK --
+per-rank RSS = NPLWV x NBANDS x 16 B = 3.87 GB/rank (verified by ps). Total
+does NOT shrink with rank count (64/56/28 ranks all land at ~108-130 GB), so
+reducing ranks never fixes it. Fixes that worked: no ADDGRID (its support grid
+is large and eigenvalue-neutral), ISPIN=1 for the non-magnetic plot, and if
+still tight, NBANDS = occupied + 30-40. Secondary cost: ICHARG=11 with
+ISTART=0 (no WAVECAR) converges eigenvalues from a random guess over ~10
+electronic passes; a static run written with LWAVE=.TRUE. + ISTART=1
+reconverges in 1-2 passes. validate_input.py flags this as
+BAND_MEMORY_HEAVY / ADDGRID_ON_BAND.
+
 ### Phonon
 - Phonon? -> phonopy finite-displacement workflow (`vasp_phonopy` single point)
   vs DFPT (`IBRION=8`)
