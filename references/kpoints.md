@@ -96,6 +96,22 @@ For band structure, `kpoints_helper.py` calls **seekpath** to:
 
 `--allow-supercell` overrides the refusal, with a loud warning that the labels refer to the primitive BZ.
 
+**Case study (2026-10, Janus MoSSe 4x4 supercell -- bypassing the helper has consequences).**
+A Pd-MoSSe SAC reproduction hand-wrote a line-mode band path by copying the
+literature primitive-cell coordinates G-M-K-G = (0,0,0)-(0.5,0,0)-(1/3,1/3,0)-(0,0,0)
+into the KPOINTS sitting next to the **4x4 supercell** POSCAR. In supercell
+reciprocal coordinates those points are (2,0,0) and (4/3,4/3,0) of the primitive
+lattice: the path actually sampled G-M-G-K-G of the primitive BZ at quarter
+scale, while the figure was labeled G-M-K-G. The job also OOM-killed four times
+(unrelated memory issue), which delayed discovery of the mislabel until the k
+coordinates were checked against the cell. kpoints_helper.py would have refused
+this exact input (repetition supercell; "labels refer to the primitive BZ").
+Fix applied: divide the M/K coordinates by the supercell multiplicity
+(M -> (0.125,0,0), K -> (1/12,1/12,0)) so the path samples the primitive
+G-M-K-G at true scale, and rerun the band job. Rule of thumb: whenever the
+POSCAR is an N x N supercell and the path coordinates come from a 1x1 paper,
+divide the path coordinates by N (folding guarantees equivalent primitive points).
+
 **Tolerance-sensitive structures (fail closed).** The Bravais classification depends on `symprec`: a slightly distorted cell can be monoclinic at 1e-5 but hexagonal at 1e-4 (see `examples/K5_hex_band`). The helper probes the classification at `symprec` and `symprec ×10`; if they disagree it **refuses to write** and asks you to re-run at a stable `--symprec` (or explicitly override with `--allow-tolerance-sensitive`). If you declare the expected family via `--lattice` or a keyword in the POSCAR comment line (`hexagonal`, `cubic`, …) and it conflicts with the identified Bravais family, the helper **exits non-zero** — a declared-vs-identified conflict is never overridden silently.
 
 **No basis-mismatch fallback.** `seekpath.get_path_orig_cell` requires seekpath ≥ 2.0. If it is unavailable, the helper does **not** fall back to `seekpath.get_path()` (standardized primitive basis — silently wrong for conventional cells); it exits non-zero and tells you to upgrade.

@@ -26,7 +26,7 @@ Generate deterministic, module-grouped input files for **VASP**, **LAMMPS**, and
 | LAMMPS input | `references/lammps.md` |
 | LAMMPS parameter selection & equilibration protocol | `references/lammps_best_practices.md` |
 | CP2K input | `references/cp2k.md` (incl. CP2K↔VASP parameter mapping) |
-| KPOINTS / band paths | `references/kpoints.md` |
+| KPOINTS / band paths | `references/kpoints.md` — **band KPOINTS MUST be generated via `kpoints_helper.py --band-structure` (or a shown coordinate calculation against the POSCAR's own reciprocal lattice); hand-written band paths are a violation -- a supercell directory silently mislabels primitive-cell path coordinates** |
 | VASP follow-ups | `references/vasp.md` |
 | Worked examples | `examples/README.md` (index + task coverage matrix), then the matching example directory |
 
