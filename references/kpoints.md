@@ -106,11 +106,22 @@ scale, while the figure was labeled G-M-K-G. The job also OOM-killed four times
 (unrelated memory issue), which delayed discovery of the mislabel until the k
 coordinates were checked against the cell. kpoints_helper.py would have refused
 this exact input (repetition supercell; "labels refer to the primitive BZ").
-Fix applied: divide the M/K coordinates by the supercell multiplicity
-(M -> (0.125,0,0), K -> (1/12,1/12,0)) so the path samples the primitive
-G-M-K-G at true scale, and rerun the band job. Rule of thumb: whenever the
-POSCAR is an N x N supercell and the path coordinates come from a 1x1 paper,
-divide the path coordinates by N (folding guarantees equivalent primitive points).
+**CORRECTED FIX (an earlier revision of this note had the direction
+backwards -- verified three ways):** fractional k-coordinates are in units of
+the reciprocal basis, and the supercell's reciprocal basis vectors are 1/N of
+the primitive ones, so the SAME physical k-point has **supercell fractional
+coordinates = primitive fractional coordinates x N** (multiply!). Verified:
+primitive M (0.5,0,0) -> (2,0,0)_sup (Cartesian 2B1 = b1_prim/2 = M exactly);
+primitive K (1/3,1/3) -> (4/3,4/3)_sup (Cartesian = (b1+b2)/3 = K exactly).
+Rule of thumb: whenever the POSCAR is an N x N supercell and the path
+coordinates come from a 1x1 paper, MULTIPLY the path coordinates by N.
+(Running the unmultiplied coordinates is not fatal -- it samples a
+quarter-scale interior path whose folded bands still contain the primitive
+high-symmetry points as folded images -- but the plotted "gap at K" then comes
+from near-Gamma folded states and the axis labels do not match the tick
+geometry. Also: the line-mode header allows free text on LINE 1 ONLY; line 2
+must be the integer points-per-segment -- a multi-line comment there aborts
+with "Error reading KPOINTS file, line 2".)
 
 **Tolerance-sensitive structures (fail closed).** The Bravais classification depends on `symprec`: a slightly distorted cell can be monoclinic at 1e-5 but hexagonal at 1e-4 (see `examples/K5_hex_band`). The helper probes the classification at `symprec` and `symprec ×10`; if they disagree it **refuses to write** and asks you to re-run at a stable `--symprec` (or explicitly override with `--allow-tolerance-sensitive`). If you declare the expected family via `--lattice` or a keyword in the POSCAR comment line (`hexagonal`, `cubic`, …) and it conflicts with the identified Bravais family, the helper **exits non-zero** — a declared-vs-identified conflict is never overridden silently.
 
