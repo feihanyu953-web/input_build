@@ -156,6 +156,16 @@ Size: ~137 atoms → LREAL=Auto
 10. Program version & build? [VASP version + stock / VTST / VASPsol patches; CP2K version; LAMMPS version + compiled packages (ELECTRODE/RIGID/PLUMED/...)] → gates version-specific syntax, see Version & Capability Gating; **mandatory**
 ```
 
+**Parallelization sizing（实测教训 2026-10-23，Section VII 填值前必读）：**
+
+MPI 秩数由 submit 侧 `-n`/`mpirun -np` 决定，INCAR 的 NCORE/KPAR 只负责**切分**这些秩——核多 ≠ 快，切分不当则通信淹没计算。
+
+- **小体系（≤30 原子）：NCORE=1，秩数 ≈ NKPTS，不开 KPAR**。实测：16 原子/20 k 点（NBANDS=100），60 秩 NCORE=4/KPAR=3 → **23.5 s/电子步**（负载满转但全是 barrier 忙等）；20 秩 NCORE=1 → **~3 s/步（8×）**。
+- NKPTS 以对称约化后为准（OUTCAR；6×6×1 Γ 中心实测 36→20），静态渲染时用网格乘积做上界估计。
+- **NCORE>1 只用于内存吃紧/大 NBANDS 的大体系**（省内存、单 k 点快，代价是每步带间通信税）。
+- **KPAR 只用于 k 点致密的大体系**且分组尽量均匀；小网格上不均分 + 组同步 = 净损失。
+- 诊断口诀：OSZICAR 走得慢 + CPU 满转 = 通信/等待瓶颈（MPI barrier 忙等也占满 CPU），砍秩立竿见影。
+
 **Code-specific follow-ups:**
 
 **VASP:**（完整 follow-ups 见 `references/vasp.md`，生成前必读）
@@ -343,6 +353,8 @@ Before returning the generated file, verify:
 | **NELM for DFT+U** | LDAU=.TRUE. + NELM < 80 → warn | Warn |
 | **LAMMPS potential** | Section III contains `>>> USER: insert` OR actual pair_style | Error if blank without marker |
 | **Parallelization** | KPAR × NCORE ≤ total cores | Warn if over-allocated |
+| **Small-cell NCORE** | NCORE ≥ 2 on a ≤30-atom cell → band-parallel communication tax; prefer NCORE=1 with ranks ≈ NKPTS | Warn |
+| **KPAR on small mesh** | KPAR > 1 on an automatic mesh with ≤36 points → uneven group split + per-group sync | Warn |
 | **CP2K basis coverage** | Every element in coord file has a matching `&KIND` block | Error if missing |
 | **CP2K periodicity consistency** | Route `&CELL PERIODIC` and `&POISSON PERIODIC` together; `CELL XYZ` + `POISSON XY` is an allowed slab decoupling when intentional, while incompatible 0D/3D mismatches remain invalid | Warn for intentional slab split; Error for incompatible mismatch |
 | **CP2K CUTOFF sanity** | CUTOFF ≥ 300 Ry for DFT; ≥ 600 Ry for meta-GGA/hybrids | Warn if below |

@@ -431,13 +431,15 @@ def infer_task(params):
 # ---------------------------------------------------------------------------
 
 def validate(params, structure=None, max_enmax=None, linemode=False, task_override=None,
-             dftu_control=False, iconst=None, iconst_requested=False):
+             dftu_control=False, iconst=None, iconst_requested=False, mesh=None):
     # dftu_control=True exempts the zero-U placeholder guard (audit P1-VASP-07);
     # set via --task dftu-control or a '# control calculation' comment in INCAR.
     # iconst: parsed iconst.IconstFile or None (context absent).
     # iconst_requested: True when the caller explicitly asked for the
     # slowgrowth task (--task slowgrowth), which turns a missing ICONST from
     # INCOMPLETE context into a hard ERROR. See Task 4.
+    # mesh: automatic-k-mesh tuple (nx, ny, nz) when KPOINTS is an automatic
+    # mesh, else None; feeds the small-mesh KPAR heuristic.
     f = []
     add = lambda level, code, msg: f.append(Finding(level, code, msg))
 
@@ -972,6 +974,33 @@ def validate(params, structure=None, max_enmax=None, linemode=False, task_overri
             and str(params.get("LREAL", [""])[0]).lower().startswith("auto")):
         add(WARN, "LREAL_AUTO_SMALL",
             f"LREAL=Auto on a {structure.natoms}-atom cell; use LREAL=.FALSE. for small cells/accurate statics")
+
+    # --- Parallelization sizing for small cells ----------------------------
+    # Observed 2026-10-23 (Pt(111) 2x2, 16 atoms, 20 reduced k-points,
+    # NBANDS=100, 64-core node): 60 ranks with NCORE=4/KPAR=3 ran at
+    # 23.5 s/electronic step -- per-step global sync swamped the tiny
+    # per-rank work (load average 60 with every rank busy-waiting in
+    # barriers; NKPTS 20 split 7/7/6 across KPAR groups). NCORE=1 with
+    # ranks = NKPTS dropped the same step to ~3 s (8x).
+    ncore = get_int(params, "NCORE", 1)
+    kpar = get_int(params, "KPAR", 1)
+    if structure and ncore > 1 and structure.natoms <= 30:
+        add(WARN, "PARA_NCORE_SMALL_CELL",
+            f"NCORE={ncore} on a {structure.natoms}-atom cell: band parallel "
+            "pays a per-step communication tax. For small cells prefer "
+            "NCORE=1 with MPI ranks ~= NKPTS (2026-10-23 case: 16-atom "
+            "slab, NCORE=4/KPAR=3 on 60 ranks = 23.5 s/step; NCORE=1 on "
+            "20 ranks = ~3 s/step). Reserve NCORE>=4 for memory-bound "
+            "large cells")
+    if kpar > 1 and mesh is not None:
+        mesh_pts = mesh[0] * mesh[1] * mesh[2]
+        if mesh_pts <= 36:
+            add(WARN, "PARA_KPAR_SMALL_MESH",
+                f"KPAR={kpar} on a {mesh[0]}x{mesh[1]}x{mesh[2]} mesh "
+                f"({mesh_pts} points): uneven k-point splits across groups "
+                "plus per-group sync often make KPAR a net loss on small "
+                "meshes; reserve it for dense meshes on large cells and "
+                "keep the group split even")
 
     # --- NELMIN for metals ---
     if structure and elements:
@@ -2196,13 +2225,16 @@ def validate_one(incar_path, poscar_path=None, potcar_path=None,
         max_enmax = parse_potcar_max_enmax(potcar_path)
     linemode = bool(kpoints_path and os.path.exists(kpoints_path)
                     and is_linemode_kpoints(kpoints_path))
+    mesh = None
+    if kpoints_path and os.path.exists(kpoints_path) and not linemode:
+        mesh = read_automatic_kpoints_mesh(kpoints_path)
     dftu_control = (task == "dftu-control") or _declares_control_calculation(incar_path)
     iconst_file = None
     if iconst_path and os.path.exists(iconst_path):
         iconst_file = parse_iconst(iconst_path)
     findings = validate(params, structure, max_enmax, linemode, task,
                         dftu_control=dftu_control, iconst=iconst_file,
-                        iconst_requested=(task == "slowgrowth"))
+                        iconst_requested=(task == "slowgrowth"), mesh=mesh)
     if iconst_path and iconst_file is None:
         findings.append(Finding(
             WARN, "SG_ICONST_UNREADABLE_PATH",

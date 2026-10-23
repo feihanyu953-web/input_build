@@ -57,6 +57,11 @@ LWAVE    = .FALSE.                  # WAVECAR is GB-scale; restarts use CONTCAR
 
 # ------------------------------------------------------------------------------
 # VII. PARALLELIZATION (hardware-dependent; uncomment and adjust on cluster)
+# Ranks come from the submit side (-n / mpirun -np); NCORE/KPAR only split them.
+# Small cells (<=30 atoms): NCORE=1 and ranks ~= NKPTS, no KPAR
+#   (2026-10-23: 16 atoms/20 kpts, 60 ranks NCORE=4/KPAR=3 -> 23.5 s/step;
+#    20 ranks NCORE=1 -> ~3 s/step). NCORE=4-8: memory-bound large cells.
+# KPAR>1: dense-mesh large systems only; keep the group split even.
 # ------------------------------------------------------------------------------
 # NCORE  = 4                        # Orbitals per core; tune for your queue / node
 # NPAR   = 4                        # Bands parallelized over NPAR groups

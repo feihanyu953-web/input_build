@@ -607,6 +607,40 @@ class TestSocMetaggaPhonon(Case):
 
 
 # ---------------------------------------------------------------------------
+# Parallelization sizing rules (2026-10-23 MPI-overhead case study)
+# ---------------------------------------------------------------------------
+
+class TestParallelSizingRules(Case):
+    SLAB17 = vi.Structure(
+        lattice=[[5.55, 0.0, 0.0],
+                 [2.77, 4.80, 0.0],
+                 [0.0, 0.0, 22.0]],
+        elements=["Pt", "H"], counts=[16, 1],
+        frac=[[0.1, 0.1, 0.1]] * 17,
+    )
+
+    def test_ncore_small_cell_warns(self):
+        findings = vi.validate({"NCORE": ["4"], "ENCUT": ["400"]},
+                               structure=self.SLAB17, task_override="relax")
+        self.assertIn("PARA_NCORE_SMALL_CELL", self.codes(findings))
+
+    def test_ncore_one_small_cell_no_warn(self):
+        findings = vi.validate({"NCORE": ["1"], "ENCUT": ["400"]},
+                               structure=self.SLAB17, task_override="relax")
+        self.assertNotIn("PARA_NCORE_SMALL_CELL", self.codes(findings))
+
+    def test_kpar_small_mesh_warns(self):
+        findings = vi.validate({"KPAR": ["3"], "ENCUT": ["400"]},
+                               mesh=(6, 6, 1), task_override="relax")
+        self.assertIn("PARA_KPAR_SMALL_MESH", self.codes(findings))
+
+    def test_kpar_dense_mesh_no_warn(self):
+        findings = vi.validate({"KPAR": ["3"], "ENCUT": ["400"]},
+                               mesh=(9, 9, 1), task_override="relax")
+        self.assertNotIn("PARA_KPAR_SMALL_MESH", self.codes(findings))
+
+
+# ---------------------------------------------------------------------------
 # Golden test: every shipped example INCAR must be ERROR-free
 # ---------------------------------------------------------------------------
 
