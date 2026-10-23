@@ -945,6 +945,14 @@ def validate(params, structure=None, max_enmax=None, linemode=False, task_overri
                 f"phonon task with EDIFF={ediff:g} > 1E-7; forces for phonopy "
                 "finite displacements need EDIFF <= 1E-7 (1E-8 recommended)")
 
+    # --- Freq SCF tightness (FD Hessian, same physics as the phonon rule) ---
+    if task == "freq":
+        ediff = get_float(params, "EDIFF")
+        if ediff is not None and ediff > 1e-7:
+            add(WARN, "FREQ_EDIFF_LOOSE",
+                f"freq task with EDIFF={ediff:g} > 1E-7; finite-difference Hessian "
+                "forces need EDIFF <= 1E-7 (1E-8 recommended, same as phonon)")
+
     # --- Implicit solvation (VASPsol) ---
     if get_bool(params, "LSOL"):
         add(WARN, "VASPSOL_BINARY_UNVERIFIED",
@@ -984,14 +992,20 @@ def validate(params, structure=None, max_enmax=None, linemode=False, task_overri
     # ranks = NKPTS dropped the same step to ~3 s (8x).
     ncore = get_int(params, "NCORE", 1)
     kpar = get_int(params, "KPAR", 1)
-    if structure and ncore > 1 and structure.natoms <= 30:
+    # Multi-k static-family tasks only: Gamma-only AIMD (md/slowgrowth) has
+    # no k-point dimension, so band parallelism is the only option there and
+    # NCORE=4-8 is measured-optimal even on small cells (2026-09: 410 vs
+    # 10-16 s/step with NCORE=1 vs 8 on 64 cores) -- pinned-set golden test
+    # caught this rule misfiring on the slowgrowth example.
+    if (structure and ncore > 1 and structure.natoms <= 30
+            and task not in ("md", "slowgrowth")):
         add(WARN, "PARA_NCORE_SMALL_CELL",
             f"NCORE={ncore} on a {structure.natoms}-atom cell: band parallel "
             "pays a per-step communication tax. For small cells prefer "
             "NCORE=1 with MPI ranks ~= NKPTS (2026-10-23 case: 16-atom "
             "slab, NCORE=4/KPAR=3 on 60 ranks = 23.5 s/step; NCORE=1 on "
             "20 ranks = ~3 s/step). Reserve NCORE>=4 for memory-bound "
-            "large cells")
+            "large cells or Gamma-only AIMD")
     if kpar > 1 and mesh is not None:
         mesh_pts = mesh[0] * mesh[1] * mesh[2]
         if mesh_pts <= 36:
@@ -1012,6 +1026,24 @@ def validate(params, structure=None, max_enmax=None, linemode=False, task_overri
                 add(WARN, "NELMIN_LOW",
                     f"Metal system with NELMIN={nelmin} < 4 (default 2); "
                     "set NELMIN >= 4 to avoid premature SCF exit")
+            # --- PREC basin break on metal slabs (task-chain consistency) ---
+            # Observed 2026-10-23 (Pt(111) 2x2 + H, 64-core node): the freq
+            # rerun with PREC=Accurate charge-sloshed past NELM=100 (E
+            # crawling to -118 eV) on the exact geometry the relax task had
+            # converged at PREC=Normal in 25 steps. Basin-defining tags
+            # (PREC among them) must travel with the chain.
+            if (vacuum
+                    and task in ("relax", "scf", "freq", "phonon", "neb",
+                                 "md", "slowgrowth")
+                    and str(params.get("PREC", ["Normal"])[0]).lower()
+                    .startswith("acc")):
+                add(WARN, "PREC_ACCURATE_METAL_SLAB",
+                    "PREC=Accurate on a metal-slab geometry/force task risks "
+                    "charge sloshing (observed 2026-10-23: 100+ unconverged "
+                    "steps at PREC=Accurate where Normal converged in 25 on "
+                    "the same geometry). Keep PREC consistent with the relax "
+                    "task in this chain; raise to Accurate only with a stated "
+                    "reason and mixing fixes")
 
     return f
 

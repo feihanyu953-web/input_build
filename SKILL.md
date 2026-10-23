@@ -13,6 +13,8 @@ Generate deterministic, module-grouped input files for **VASP**, **LAMMPS**, and
 
 **Core principle:** Auto-detect first, question second, annotate always.
 
+**HARD GATE — question round before EVERY render.** Every input-file generation — **including follow-up renders in the same conversation or task chain** (freq after relax, static after relax, a second system, a re-render after a fix) — MUST be preceded by an AskUserQuestion round covering the Step-3 questions relevant to THAT task. An answered round covers exactly one render; "same session / same chain / already asked earlier" is **never** a waiver. Never silent-default a mandatory question, and never infer **task-protocol decisions** (e.g. which atoms vibrate in a freq task, whether a clean-surface reference task is needed): those are the user's lab conventions, not derivable defaults. Auto-detection covers material properties only — it does not license skipping the gate.
+
 ## Legal Notice
 
 - `input_build` generates **input control files only** (INCAR, KPOINTS, CP2K `.inp`, LAMMPS `.in`). It does **not** generate, distribute, or embed any copyrighted material including VASP POTCAR files, pseudopotentials, or executable code.
@@ -117,6 +119,18 @@ Resolve the Step-3 version/build question **before** rendering a template; never
 3. Available modifiers: `ivdw` (D3-BJ dispersion), `dipole` (slab correction), `magnetic` (ISPIN=2), `semiconductor` (ISMEAR=-5 tetrahedron; static SCF/DOS on dense automatic meshes only — never relax/MD, molecules/Gamma-only, or line-mode band), `dftu` (LDAU\* + mandatory LMAXMIX), `optics` (LOPTICS), `solvation` (VASPsol implicit water), `efield` (sawtooth field; requires the dipole modifier), `soc` (LSORBIT+SAXIS; NBANDS ~2x), `metagga` (r2SCAN/SCAN; LASPH mandatory), `efield_lammps` (LAMMPS fix efield snippet), plus LAMMPS snippet modifiers `shake_lammps` (rigid water), `analysis_rdf_msd`, `analysis_hbond` (post-processing route), `ensemble_langevin`, `temp_ramp`, `dump_full`, `wall_slab`. `empty` documents the patch format only — never apply it.
 4. **After overlaying, the result MUST pass `scripts/validate_input.py` with zero ERROR findings** (see Machine Validation).
 
+### Task-Chain Settings Contract（任务链参数契约）
+
+Consecutive tasks on the same system form an energy-subtraction chain (relax → freq / scf / dos / band / NEB / phonon / MD / workfunction). When rendering any follow-up, tags split into three classes with different consistency obligations:
+
+| Class | Tags | Rule across a chain |
+|---|---|---|
+| **Basin-defining** | ENCUT, POTCAR lineage, ISPIN, ISMEAR/SIGMA family, **PREC**, IVDW, LDAU\*, k-mesh | **IDENTICAL** whenever energies or forces are compared, or the task continues a relaxed geometry (freq, phonon, NEB, static-on-CONTCAR). A PREC change can move the SCF basin: observed 2026-10-23 — relax converged PREC=Normal in 25 steps; the freq rerun with PREC=Accurate **charge-sloshed past NELM=100 on the same geometry** (E crawling to −118 eV vs the −96.8 eV basin) |
+| **Convergence tightness** | EDIFF (relax 1E-6 → freq/phonon 1E-8), NELM | May tighten downstream; never loosen below the upstream task |
+| **Task-specific** | IBRION / NSW / NFREE / POTIM / NWRITE / output flags | Per-task |
+
+Exception: post-processing statics on a **frozen converged density** (band / DOS / optics with ICHARG=11; bader / elf / workfunction) may raise PREC — no basin continuity is needed once the density is fixed. The vibrational templates (`vasp_freq`, `vasp_phonopy`) ship PREC=Normal + EDIFF=1E-8 precisely to sit on the relax chain; do not "upgrade" them to Accurate on metal systems without a stated reason and mixing fixes.
+
 ### Step 1: Read Structure
 
 ```bash
@@ -154,6 +168,7 @@ Size: ~137 atoms → LREAL=Auto
 8. Boundary periodicity? [3D bulk / 2D slab / 1D wire / 0D molecule] → k-mesh, LAMMPS `boundary` + NPT coupling; for CP2K the answer decides the four-tuple atomically — `&CELL PERIODIC` + `&POISSON PERIODIC` + `POISSON_SOLVER` + CELL/vacuum sizing (never set one without the others; 改 PERIODIC 不改 solver = ERROR `CP2K_POISSON_SOLVER_INCOMPATIBLE`), route per the Dimension Routing Decision Tree（维度路由决策树） in `references/cp2k.md`; **mandatory**
 9. Potential / pseudopotential files? [VASP: POTCAR set + version (e.g. PBE.54 vs PBE.64); LAMMPS: file path + format class — funcfl → `pair_style eam`, setfl → `eam/alloy`/`eam/fs`; CP2K: basis-set & GTH-potential file names] → pair_style/pair_coeff, ENMAX coverage; **mandatory** (never invent potentials)
 10. Program version & build? [VASP version + stock / VTST / VASPsol patches; CP2K version; LAMMPS version + compiled packages (ELECTRODE/RIGID/PLUMED/...)] → gates version-specific syntax, see Version & Capability Gating; **mandatory**
+11. Vibration protocol? (freq / phonon tasks) [which atoms vibrate: **adsorbate-only** (standard for adsorption ZPE — slab modes cancel in the difference, no clean-surface freq task) / surface layers freed / all SD-free atoms; displacement amplitude if nonstandard] → SD flags in POSCAR; **mandatory** for freq/phonon — the vibrating set is a lab-convention decision, never inferred
 ```
 
 **Parallelization sizing（实测教训 2026-10-23，Section VII 填值前必读）：**
@@ -393,6 +408,8 @@ Before returning the generated file, verify:
 | **meta-GGA grid** | `METAGGA` set without `ADDGRID` | Warn |
 | **CP2K meta-GGA CUTOFF** | `XC_FUNCTIONAL` contains SCAN/R2SCAN + CUTOFF < 600 Ry | Warn |
 | **VASP phonon SCF** | task=phonon + `EDIFF > 1E-7` (phonopy forces need 1E-8) | Warn |
+| **VASP freq SCF** | task=freq + `EDIFF > 1E-7` (FD Hessian forces need 1E-8, same as phonon) | Warn |
+| **PREC basin break** | PREC=Accurate on a metal-slab geometry/force task (relax/freq/phonon/NEB/MD) → charge-sloshing risk; keep PREC=Normal consistent with the chain basin | Warn |
 | **CP2K metadyn sections** | metadyn task requires `&METADYN` + `&METAVAR` + `&COLVAR` under `FORCE_EVAL/SUBSYS` | Error if missing |
 | **CP2K metadyn hills print** | `&METADYN` without `&PRINT/&HILLS` (FES reconstruction impossible) | Warn |
 | **LAMMPS SHAKE reminder** | evaluate each executed MD `run` with its then-active timestep/fixes; >1 fs requires active `fix shake`/`fix rigid*` unless `--data` rules out H. If `--data` plus `group ... type` proves the constraint group excludes every H type, it does not suppress the warning | Warn |
@@ -517,6 +534,9 @@ LAMMPS 复杂任务可通过显式激活科学 profile 获得 L4 验收契约。
 `input_build` 维护 `references/lammps_examples_index.json` 作为 LAMMPS 官方示例的来源溯源数据。该索引只用于为后续 renderer 与 explain mode 提供命令来源标注。索引不复制参数到模板、不选择势函数、不渲染输入、不执行 LAMMPS、不提升证据等级。引用官方示例作为命令来源解释不等于证明用户体系的物理适用性。
 
 ## Red Flags
+
+- **Do NOT** render any input file without a completed question round **for that render** — "continuing the chain", "same session", or "already asked earlier" is not a waiver (HARD GATE, see Overview). Silent-defaulting a mandatory question or a task-protocol choice (what vibrates in a freq task, whether a clean-surface reference is needed) is the top protocol-error class
+- **Do NOT** run a force-sensitive follow-up (freq / phonon / NEB / static-on-CONTCAR) with a PREC or smearing family different from the relax task that produced the geometry — basin-defining tags travel with the chain (see Task-Chain Settings Contract; observed 2026-10-23: PREC=Accurate freq rerun charge-sloshed past NELM=100 where Normal converged in 25 steps)
 
 - **Do NOT** generate LAMMPS potentials without user-provided paths
 - **Do NOT** set ISMEAR < 0 for molecules/Gamma-only systems or line-mode band structures; ISMEAR=-5 (tetrahedron) is allowed — and often best — for semiconductor/insulator static/DOS runs with a dense automatic k-mesh, but never for relax of unknown-character systems (use ISMEAR=0 + small SIGMA there)

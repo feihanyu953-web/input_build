@@ -19,7 +19,10 @@
 # I. GLOBAL SETTINGS
 # ------------------------------------------------------------------------------
 SYSTEM   = phonopy single-point       # Human-readable job title
-PREC     = Accurate                   # Force-sensitive calc
+PREC     = Normal                   # Match the relax/chain basin: PREC=Accurate charge-sloshes
+                                      # on metal slabs past NELM=100 where Normal converges in
+                                      # ~25 steps (observed 2026-10-23, Pt(111)+H). Raise to
+                                      # Accurate only with a stated reason + mixing fixes
 ENCUT    = 400                        # >= 1.3 x max ENMAX recommended
 
 # ------------------------------------------------------------------------------

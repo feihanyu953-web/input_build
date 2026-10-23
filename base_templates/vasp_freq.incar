@@ -6,14 +6,20 @@
 # I. GLOBAL SETTINGS
 # ------------------------------------------------------------------------------
 SYSTEM   = VASP Frequency Calc        # Human-readable job title
-PREC     = Accurate                 # Force-sensitive calc; auto-adds ADDGRID + LREAL opt
+PREC     = Normal                   # MUST match the relax task that produced the geometry:
+                                      # PREC=Accurate on a metal slab charge-sloshed past
+                                      # NELM=100 on the SAME geometry that Normal converged
+                                      # in 25 steps (observed 2026-10-23, Pt(111)+H; E crawled
+                                      # to -118 eV). Basin-defining tags travel with the chain
 ENCUT    = 400                        # Plane-wave cutoff (eV); >= max ENMAX in POTCAR
 
 # ------------------------------------------------------------------------------
 # II. ELECTRONIC SCF
 # ------------------------------------------------------------------------------
 ALGO     = Normal                     # Normal Davidson/RMM-DIIS mixer
-EDIFF    = 1E-6                       # Tight SCF convergence for accurate forces / Hessian
+EDIFF    = 1E-8                       # FD Hessian differences forces at the 1e-3 eV/A level;
+                                      # loose SCF leaks into every displacement (matches the
+                                      # phonopy template; lab precedent EDIFF=1E-8)
 ISMEAR   = 0                          # Gaussian smearing
 SIGMA    = 0.1                        # Smearing width (eV); for an isolated small
                                       # molecule in vacuum use SIGMA = 0.01-0.05
@@ -30,6 +36,12 @@ NSW      = 1                          # REQUIRED: IBRION=5/6 needs NSW>0, else V
                                       # Hessian/frequency workflow (vasp.at/wiki/IBRION)
 NFREE    = 2                          # 2 displacements per direction (central difference)
 POTIM    = 0.015                      # Displacement amplitude (A); standard for vib. calc
+                                      # WHAT VIBRATES = the SD-free set in POSCAR. For an
+                                      # adsorption ZPE the STANDARD convention is to free the
+                                      # adsorbate only (e.g. 3 H modes) and freeze the whole
+                                      # slab: slab modes cancel in the difference and a
+                                      # clean-surface freq task is not run. Ask the user --
+                                      # never guess the vibrating set
 NWRITE   = 1                          # Write OUTCAR with forces (needed for post-processing)
                                       # Do NOT raise to >=3: with NWRITE=3 VASP prints every mode TWICE
                                       # (raw + sqrt(mass) blocks) -> vaspkit task 501 ZPE/TS doubles

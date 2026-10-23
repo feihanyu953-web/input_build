@@ -641,6 +641,55 @@ class TestParallelSizingRules(Case):
 
 
 # ---------------------------------------------------------------------------
+# Task-chain consistency rules (2026-10-23 PREC charge-sloshing case)
+# ---------------------------------------------------------------------------
+
+class TestChainConsistencyRules(Case):
+    PT_SLAB = vi.Structure(
+        lattice=[[5.55, 0.0, 0.0],
+                 [2.77, 4.80, 0.0],
+                 [0.0, 0.0, 22.0]],
+        elements=["Pt", "H"], counts=[16, 1],
+        frac=[[0.1, 0.1, 0.1]] * 17,
+    )
+    H2_BOX = vi.Structure(
+        lattice=[[10.0, 0.0, 0.0],
+                 [0.0, 10.0, 0.0],
+                 [0.0, 0.0, 10.0]],
+        elements=["H"], counts=[2],
+        frac=[[0.4, 0.5, 0.5], [0.6, 0.5, 0.5]],
+    )
+
+    def test_freq_ediff_loose_warns(self):
+        findings = vi.validate({"EDIFF": ["1E-6"], "ENCUT": ["400"]},
+                               task_override="freq")
+        self.assertIn("FREQ_EDIFF_LOOSE", self.codes(findings))
+
+    def test_freq_ediff_tight_no_warn(self):
+        findings = vi.validate({"EDIFF": ["1E-8"], "ENCUT": ["400"]},
+                               task_override="freq")
+        self.assertNotIn("FREQ_EDIFF_LOOSE", self.codes(findings))
+
+    def test_prec_accurate_metal_slab_warns(self):
+        findings = vi.validate(
+            {"PREC": ["Accurate"], "ENCUT": ["400"], "NELMIN": ["6"]},
+            structure=self.PT_SLAB, task_override="freq")
+        self.assertIn("PREC_ACCURATE_METAL_SLAB", self.codes(findings))
+
+    def test_prec_normal_metal_slab_no_warn(self):
+        findings = vi.validate(
+            {"PREC": ["Normal"], "ENCUT": ["400"], "NELMIN": ["6"]},
+            structure=self.PT_SLAB, task_override="freq")
+        self.assertNotIn("PREC_ACCURATE_METAL_SLAB", self.codes(findings))
+
+    def test_prec_accurate_molecule_no_warn(self):
+        findings = vi.validate(
+            {"PREC": ["Accurate"], "ENCUT": ["400"]},
+            structure=self.H2_BOX, task_override="freq")
+        self.assertNotIn("PREC_ACCURATE_METAL_SLAB", self.codes(findings))
+
+
+# ---------------------------------------------------------------------------
 # Golden test: every shipped example INCAR must be ERROR-free
 # ---------------------------------------------------------------------------
 
