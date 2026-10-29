@@ -194,3 +194,51 @@ Multi-trajectory Jarzynski batches (do it by hand, following `methods-0529`),
 `IRCCAR` and the path coordinates `IS`/`IZ`, and deep checks for the
 `W/M/B/P/X/cX/LR/LA/LV` flags (they parse, but arity and geometry checks are
 skipped; each skip is reported as a WARN on top of an otherwise-clean verdict).
+
+## NEB (CI-NEB): optimizer choice, continuation & post-processing
+
+### Optimizer selection (stock vs VTST)
+
+| situation | INCAR tags | notes |
+|---|---|---|
+| stock VASP binary | `IBRION=1` (RMM-DIIS) or `2` (CG) | the only option; known to oscillate on steep dissociation paths |
+| VTST binary, an image far from the MEP or an oscillating energy trace | `IBRION=3` + `POTIM=0` + `IOPT=7` (FIRE) | most robust; observed 2026-10-29 on a Pt(111) H2O-dissociation CI-NEB where `IBRION=1` oscillated (dE sign flips over ~10 steps) with one image stuck at 1.97 eV/A tangential force |
+| VTST binary, polishing near convergence | `IBRION=3` + `POTIM=0` + `IOPT=1` (LBFGS) | fastest final convergence; start it once max tangential force is ~0.1 eV/A |
+
+**IOPT contract:** `IOPT` is honored only with `IBRION=3` AND `POTIM=0`. Any
+other pairing silently ignores `IOPT` and runs the stock optimizer — the job
+completes, so the misconfiguration usually costs the full `NSW` budget before
+it is noticed (the validator raises `VASP_IOPT_REQUIRES_IBRION3_POTIM0`).
+
+### Continuation (restart) workflow
+
+1. Diagnose why the run stopped: count ionic steps in the captured stdout
+   (`grep -cE '^ *[0-9]+ F=' out.log`) against `NSW`, and check for
+   `reached required accuracy` — note it legitimately appears in the endpoint
+   directories `00/` and `NN/` from their own relax runs; the NEB converged
+   only if the intermediate image OUTCARs carry it. Step counter == NSW with
+   no accuracy message = truncated, not converged.
+2. Restart from the truncated state: in each intermediate image directory
+   `cp CONTCAR POSCAR`; leave the `00/` and `NN/` endpoints untouched; remove
+   any stale `neb.dat` from the previous segment; raise `NSW`.
+3. Keep every basin-defining tag identical across segments (PREC, ENCUT,
+   EDIFF, ISMEAR/SIGMA, the AMIX trio on Gamma-only metal slabs, POTCAR
+   lineage, k-mesh) — the path segments must sit in the same electronic basin.
+4. VTST optimizers start without history each run, so switching optimizers
+   between segments (FIRE rough phase -> LBFGS polish) is safe.
+
+### Post-processing: neb.dat is NOT a VASP output
+
+- VASP writes only per-image native files; `neb.dat` in the NEB root is
+  produced afterwards by the vtstscripts `nebbarrier.pl` (or `nebresults.pl`,
+  which additionally emits `exts.dat`/`vef.dat` via `nebspline.pl`/`vef.pl`),
+  run manually from the NEB root once the job ends.
+- `nebbarrier.pl` format (5 columns): `image  dist_cum(A)  dE(eV, relative
+  to the first image)  tangential force(eV/A)  directory`.
+- Convergence read: every intermediate image's tangential force must satisfy
+  `|F| < |EDIFFG|`. A single large-force image is the holdout — inspect that
+  image's stdout for energy oscillation before assuming a bad path.
+- Barrier: at convergence, the climbing-image dE (with `LCLIMB=.TRUE.`) is
+  the barrier. Self-check: the last image's dE must reproduce the endpoint
+  relaxation energy difference, since `nebbarrier.pl` reads the endpoint
+  OUTCARs directly.

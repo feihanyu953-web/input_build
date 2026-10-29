@@ -707,5 +707,46 @@ class TestGoldenExamples(unittest.TestCase):
                                 "golden test should cover the shipped VASP examples")
 
 
+# ---------------------------------------------------------------------------
+# VTST optimizer coupling rules (2026-10-29 CI-NEB continuation case)
+# ---------------------------------------------------------------------------
+
+class TestVtstOptimizerRules(Case):
+    def test_iopt_with_ibrion1_errors(self):
+        findings = vi.validate({"IOPT": ["7"], "IBRION": ["1"], "ENCUT": ["400"]},
+                               task_override="neb")
+        self.assertIn("VASP_IOPT_REQUIRES_IBRION3_POTIM0", self.codes(findings))
+
+    def test_iopt_with_potim_errors(self):
+        findings = vi.validate({"IOPT": ["7"], "IBRION": ["3"], "POTIM": ["0.3"],
+                                "ENCUT": ["400"]}, task_override="neb")
+        self.assertIn("VASP_IOPT_REQUIRES_IBRION3_POTIM0", self.codes(findings))
+
+    def test_iopt_full_contract_clean(self):
+        findings = vi.validate({"IOPT": ["7"], "IBRION": ["3"], "POTIM": ["0"],
+                                "ENCUT": ["400"]}, task_override="neb")
+        self.assertNotIn("VASP_IOPT_REQUIRES_IBRION3_POTIM0", self.codes(findings))
+        self.assertNotIn("VASP_IBRION3_POTIM0_NO_IOPT", self.codes(findings))
+
+    def test_ibrion3_potim0_without_iopt_warns(self):
+        findings = vi.validate({"IBRION": ["3"], "POTIM": ["0"], "ENCUT": ["400"]})
+        self.assertIn("VASP_IBRION3_POTIM0_NO_IOPT", self.codes(findings))
+        self.assertEqual([f.level for f in findings if f.code == "VASP_IBRION3_POTIM0_NO_IOPT"], [vi.WARN])
+
+    def test_ibrion3_default_potim_no_warn(self):
+        findings = vi.validate({"IBRION": ["3"], "ENCUT": ["400"]})
+        self.assertNotIn("VASP_IBRION3_POTIM0_NO_IOPT", self.codes(findings))
+
+    def test_neb_stock_optimizer_info(self):
+        findings = vi.validate({"IBRION": ["1"], "IMAGES": ["4"], "ENCUT": ["400"]})
+        self.assertIn("VASP_NEB_STOCK_OPTIMIZER", self.codes(findings))
+        self.assertEqual([f.level for f in findings if f.code == "VASP_NEB_STOCK_OPTIMIZER"], [vi.INFO])
+
+    def test_neb_fire_no_stock_hint(self):
+        findings = vi.validate({"IBRION": ["3"], "POTIM": ["0"], "IOPT": ["7"],
+                                "IMAGES": ["4"], "ENCUT": ["400"]})
+        self.assertNotIn("VASP_NEB_STOCK_OPTIMIZER", self.codes(findings))
+
+
 if __name__ == "__main__":
     unittest.main()

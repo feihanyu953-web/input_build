@@ -35,6 +35,20 @@ SPRING   = -5.0                       # Spring constant (eV/A^2); negative = NEB
 # ------------------------------------------------------------------------------
 LCLIMB   = .TRUE.                     # VTST only! Climbing image -> TS. Delete for stock NEB.
 IBRION   = 1                          # Quasi-Newton / RMM-DIIS for ionic relax (NEB)
+# ------------------------------------------------------------------------------
+# *** VTST OPTIMIZER BRANCH - only for VTST-patched binaries ***
+# Verify the build first (e.g. `strings <vasp binary> | grep -c FIRE`); a
+# stock binary silently ignores every tag below. VTST contract: IOPT requires
+# IBRION=3 AND POTIM=0 - any other pairing runs the stock optimizer instead.
+#   IOPT = 1  LBFGS      fast polish once forces reach ~0.1 eV/A
+#   IOPT = 3  Quick-min  middle ground
+#   IOPT = 7  FIRE       most robust against oscillation; use when an image
+#                         sits far from the MEP or the energy trace oscillates
+# Strategy: FIRE for the rough phase, then restart with IOPT=1 to polish.
+# ------------------------------------------------------------------------------
+# IBRION   = 3                        # VTST optimizer host (required with IOPT)
+# POTIM    = 0                        # VTST contract: 0 while IOPT is active
+# IOPT     = 7                        # FIRE (see table above)
 ISIF     = 2                          # Relax ions only; fix cell shape / volume
 NSW      = 200                        # Max ionic steps for full NEB path convergence
 EDIFFG   = -0.03                      # Force convergence (eV/A); negative = use forces

@@ -1045,6 +1045,31 @@ def validate(params, structure=None, max_enmax=None, linemode=False, task_overri
                     "task in this chain; raise to Accurate only with a stated "
                     "reason and mixing fixes")
 
+    # --- VTST optimizer coupling (IOPT family) ---
+    # VTST contract: the IOPT optimizers are only honored with IBRION=3 AND
+    # POTIM=0. Any other combination silently ignores IOPT and runs the stock
+    # optimizer instead - the job still runs, so a wrong pairing typically
+    # burns the full NSW budget before anyone notices.
+    iopt = get_int(params, "IOPT", 0)
+    ibrion = get_int(params, "IBRION", -1)
+    potim = get_float(params, "POTIM", 0.5)  # stock default when unset
+    if iopt and (ibrion != 3 or potim != 0.0):
+        add(ERROR, "VASP_IOPT_REQUIRES_IBRION3_POTIM0",
+            f"IOPT={iopt} requires IBRION=3 AND POTIM=0 (VTST optimizer "
+            f"contract); got IBRION={ibrion}, POTIM={potim} - IOPT is "
+            "silently ignored and the stock optimizer runs instead")
+    if ibrion == 3 and potim == 0.0 and not iopt:
+        add(WARN, "VASP_IBRION3_POTIM0_NO_IOPT",
+            "IBRION=3 + POTIM=0 without IOPT: stock damped-MD with a zero "
+            "step size never moves atoms (no-op run). Set IOPT (VTST "
+            "binary) or restore POTIM > 0")
+    if task == "neb" and not iopt and ibrion in (1, 2):
+        add(INFO, "VASP_NEB_STOCK_OPTIMIZER",
+            "NEB on a stock optimizer (IBRION=1/2): if the binary is "
+            "VTST-patched, IBRION=3 + POTIM=0 + IOPT=7 (FIRE) is the robust "
+            "choice for images far from the MEP; IOPT=1 (LBFGS) polishes "
+            "once forces reach ~0.1 eV/A. Keep IBRION=1 on stock builds")
+
     return f
 
 

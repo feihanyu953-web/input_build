@@ -91,7 +91,7 @@ Baselines — templates are verified against these versions; anything older is u
 
 | Program | Baseline | Verified build | Gate notes |
 |---|---|---|---|
-| VASP | ≥ 6.3 | 6.5.1 + VTST | `LCLIMB` / CI-NEB is a **VTST extension**, not a stock VASP tag — ask which binary runs the job; VASPsol requires a patched binary; `RANDOM_SEED` takes three integers |
+| VASP | ≥ 6.3 | 6.5.1 + VTST | `LCLIMB` / CI-NEB is a **VTST extension**, not a stock VASP tag — ask which binary runs the job; `IOPT` optimizers are likewise VTST-only and additionally require `IBRION=3` + `POTIM=0`; VASPsol requires a patched binary; `RANDOM_SEED` takes three integers |
 | CP2K | ≥ 2024.3 | 2026.1 | **2026.2 changes (gated):** `&CELL_OPT/TYPE` removed (DIRECT_CELL_OPT is the default — omit the keyword for 2026.2+); Mulliken `DFT+U` supports k-points from 2026.2 — pre-2026.2 DFT+U must omit `&KPOINTS` entirely (even `SCHEME GAMMA` aborts with "Method not implemented for k-points"; omitting = Gamma point); `&PLANAR_AVERAGED_V_HARTREE` is a 2026.2-dev trunk addition — on 2026.1 use `&DFT/&PRINT/&V_HARTREE_CUBE` + external planar averaging (2026.1 aborts "unknown subsection") |
 | LAMMPS | ≥ 22Jul2025 | 22 Jul 2025 Update 3 | `pair_style reax/c` was removed → use `reaxff` (plus a charge-carrying atom style and `fix qeq/reaxff`); package features (ELECTRODE, RIGID, PLUMED, ML-*) need the corresponding compiled package — check `lmp -h` |
 
@@ -416,6 +416,9 @@ Before returning the generated file, verify:
 | **LAMMPS high timestep** | timestep > 1 fs in any executed MD segment → warn unless an active constraint can cover H or `--data` proves no H; comments, a constraint added only after `run`, and a later `unfix` do not rewrite run history | Warn |
 | **LAMMPS NEB fix** | `neb` command without `fix ID group neb Kspring` | Error |
 | **VASP freq NSW** | `IBRION=5/6` without `NSW≥1` → finite-difference run never starts (static SCF only) | Error |
+| **VTST IOPT coupling** | `IOPT` set without `IBRION=3` + `POTIM=0` → IOPT silently ignored, stock optimizer runs | Error |
+| **IBRION=3 + POTIM=0 without IOPT** | stock damped-MD with zero step size — atoms never move | Warn |
+| **NEB stock optimizer** | task=neb with `IBRION=1/2` and no `IOPT`: on VTST binaries prefer `IOPT=7` (FIRE) for far images / `IOPT=1` (LBFGS) to polish | Info |
 | **VASP RANDOM_SEED** | `RANDOM_SEED` present but not 3 integers (VASP 6.x syntax) | Warn |
 | **DFT+U zero U** | `LDAU=.TRUE.` with all `LDAUL=-1` or all Ueff=0 → no U applied; exempt only explicit control calculations | Error |
 | **LANGEVIN_GAMMA count** | value count ≠ NTYP species (needs POSCAR; skipped otherwise) | Warn |
@@ -574,6 +577,7 @@ LAMMPS 复杂任务可通过显式激活科学 profile 获得 L4 验收契约。
 - **Do NOT** claim native hydrogen-bond analysis in LAMMPS — route to RDF + MDAnalysis/OVITO post-processing
 - **Do NOT** set `velocity ... create 0.0` in LAMMPS — the run aborts with "Attempting to rescale a 0.0 temperature"; use the target (or a non-zero preheat) temperature, or drop `velocity create` when the data file already assigns velocities
 - **Do NOT** set IBRION=5/6 without a positive NSW — finite-difference frequencies need `NSW=1`; otherwise VASP performs only a static SCF
+- **Do NOT** set `IOPT` without `IBRION=3` + `POTIM=0` — VTST silently ignores IOPT in any other combination and the stock optimizer runs instead
 - **Do NOT** use the ICHARG=11 fixed-density path workflow for hybrid (HSE) band structures — the hybrid Hamiltonian depends on the orbitals/Fock operator on the regular k-mesh; use a regular mesh + zero-weight path points or the KPOINTS_OPT workflow
 - **Do NOT** run `bader` directly on AECCAR0/AECCAR2 — sum first (`chgsum.pl AECCAR0 AECCAR2`), then `bader CHGCAR -ref CHGCAR_sum`; a wrong reference density changes basin partitioning and charge-transfer conclusions
 - **Do NOT** pair funcfl-format potentials (e.g. `Al_u3.eam`) with `eam/alloy` or `eam/fs` — funcfl is the single-element format for `pair_style eam`; setfl is for `eam/alloy`/`eam/fs`
