@@ -418,7 +418,8 @@ Before returning the generated file, verify:
 | **VASP freq NSW** | `IBRION=5/6` without `NSW≥1` → finite-difference run never starts (static SCF only) | Error |
 | **VTST IOPT coupling** | `IOPT` set without `IBRION=3` + `POTIM=0` → IOPT silently ignored, stock optimizer runs | Error |
 | **IBRION=3 + POTIM=0 without IOPT** | stock damped-MD with zero step size — atoms never move | Warn |
-| **NEB stock optimizer** | task=neb with `IBRION=1/2` and no `IOPT`: on VTST binaries prefer `IOPT=7` (FIRE) for far images / `IOPT=1` (LBFGS) to polish | Info |
+| **NEB stock optimizer** | task=neb with `IBRION=1/2` and no `IOPT`: on VTST binaries prefer `IOPT=1` (LBFGS — the only global NEB optimizer) | Info |
+| **NEB imagewise optimizer** | task=neb with `IOPT=3/7` (QM/FIRE): image-by-image optimization drops the spring coupling, images free-slide and the path is destroyed (observed 2026-10-29) | Error |
 | **VASP RANDOM_SEED** | `RANDOM_SEED` present but not 3 integers (VASP 6.x syntax) | Warn |
 | **DFT+U zero U** | `LDAU=.TRUE.` with all `LDAUL=-1` or all Ueff=0 → no U applied; exempt only explicit control calculations | Error |
 | **LANGEVIN_GAMMA count** | value count ≠ NTYP species (needs POSCAR; skipped otherwise) | Warn |
@@ -578,6 +579,7 @@ LAMMPS 复杂任务可通过显式激活科学 profile 获得 L4 验收契约。
 - **Do NOT** set `velocity ... create 0.0` in LAMMPS — the run aborts with "Attempting to rescale a 0.0 temperature"; use the target (or a non-zero preheat) temperature, or drop `velocity create` when the data file already assigns velocities
 - **Do NOT** set IBRION=5/6 without a positive NSW — finite-difference frequencies need `NSW=1`; otherwise VASP performs only a static SCF
 - **Do NOT** set `IOPT` without `IBRION=3` + `POTIM=0` — VTST silently ignores IOPT in any other combination and the stock optimizer runs instead
+- **Do NOT** use `IOPT=3` (QM) or `IOPT=7` (FIRE) with `IMAGES` — they optimize image-by-image and drop the NEB spring coupling; images free-slide and the path blows up (observed 2026-10-29: path 4.06 → 15.97 Å over 400 steps)
 - **Do NOT** use the ICHARG=11 fixed-density path workflow for hybrid (HSE) band structures — the hybrid Hamiltonian depends on the orbitals/Fock operator on the regular k-mesh; use a regular mesh + zero-weight path points or the KPOINTS_OPT workflow
 - **Do NOT** run `bader` directly on AECCAR0/AECCAR2 — sum first (`chgsum.pl AECCAR0 AECCAR2`), then `bader CHGCAR -ref CHGCAR_sum`; a wrong reference density changes basin partitioning and charge-transfer conclusions
 - **Do NOT** pair funcfl-format potentials (e.g. `Al_u3.eam`) with `eam/alloy` or `eam/fs` — funcfl is the single-element format for `pair_style eam`; setfl is for `eam/alloy`/`eam/fs`

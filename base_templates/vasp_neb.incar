@@ -40,11 +40,14 @@ IBRION   = 1                          # Quasi-Newton / RMM-DIIS for ionic relax 
 # Verify the build first (e.g. `strings <vasp binary> | grep -c FIRE`); a
 # stock binary silently ignores every tag below. VTST contract: IOPT requires
 # IBRION=3 AND POTIM=0 - any other pairing runs the stock optimizer instead.
-#   IOPT = 1  LBFGS      fast polish once forces reach ~0.1 eV/A
-#   IOPT = 3  Quick-min  middle ground
-#   IOPT = 7  FIRE       most robust against oscillation; use when an image
-#                         sits far from the MEP or the energy trace oscillates
-# Strategy: FIRE for the rough phase, then restart with IOPT=1 to polish.
+#   IOPT = 1  LBFGS      THE NEB optimizer - the only one VTST optimizes
+#                         globally (all images together, spring coupling kept)
+#   IOPT = 2  CG         NEB-safe alternative, usually slower than LBFGS
+#   IOPT = 3/7 QM / FIRE REGULAR-RELAXATION ONLY. Image-by-image optimizers
+#                         drop the NEB spring coupling: with IMAGES the
+#                         images free-slide and the path blows up (observed
+#                         2026-10-29: path 4.06 -> 15.97 A over 400 steps).
+# Strategy: IOPT=1 (LBFGS) from the start; no FIRE phase for NEB.
 # ------------------------------------------------------------------------------
 # IBRION   = 3                        # VTST optimizer host (required with IOPT)
 # POTIM    = 0                        # VTST contract: 0 while IOPT is active

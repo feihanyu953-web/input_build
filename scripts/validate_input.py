@@ -1066,9 +1066,22 @@ def validate(params, structure=None, max_enmax=None, linemode=False, task_overri
     if task == "neb" and not iopt and ibrion in (1, 2):
         add(INFO, "VASP_NEB_STOCK_OPTIMIZER",
             "NEB on a stock optimizer (IBRION=1/2): if the binary is "
-            "VTST-patched, IBRION=3 + POTIM=0 + IOPT=7 (FIRE) is the robust "
-            "choice for images far from the MEP; IOPT=1 (LBFGS) polishes "
-            "once forces reach ~0.1 eV/A. Keep IBRION=1 on stock builds")
+            "VTST-patched, IBRION=3 + POTIM=0 + IOPT=1 (LBFGS) is the "
+            "standard NEB route - it is the only VTST optimizer that "
+            "optimizes the path globally (spring coupling kept). Keep "
+            "IBRION=1 on stock builds")
+    # FIRE (IOPT=7) / QM (IOPT=3) optimize image-by-image: with IMAGES the
+    # NEB spring coupling is lost and images free-slide on the surface.
+    # Observed 2026-10-29 (Pt(111) H2O-dissociation CI-NEB): a 400-step
+    # IOPT=7 run let the path length blow up 4.06 -> 15.97 A with energies
+    # scattering while the INCAR SPRING tag sat unread.
+    if task == "neb" and iopt in (3, 7):
+        add(ERROR, "VASP_NEB_IMAGEWISE_OPTIMIZER",
+            f"IOPT={iopt} ({'FIRE' if iopt == 7 else 'QM'}) optimizes "
+            "image-by-image and drops the NEB spring coupling: with IMAGES "
+            "the images free-slide and the path is destroyed (observed "
+            "2026-10-29: path 4.06 -> 15.97 A over 400 steps). Use IOPT=1 "
+            "(LBFGS, the only global NEB optimizer) or IOPT=2 (CG)")
 
     return f
 

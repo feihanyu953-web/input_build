@@ -202,13 +202,19 @@ skipped; each skip is reported as a WARN on top of an otherwise-clean verdict).
 | situation | INCAR tags | notes |
 |---|---|---|
 | stock VASP binary | `IBRION=1` (RMM-DIIS) or `2` (CG) | the only option; known to oscillate on steep dissociation paths |
-| VTST binary, an image far from the MEP or an oscillating energy trace | `IBRION=3` + `POTIM=0` + `IOPT=7` (FIRE) | most robust; observed 2026-10-29 on a Pt(111) H2O-dissociation CI-NEB where `IBRION=1` oscillated (dE sign flips over ~10 steps) with one image stuck at 1.97 eV/A tangential force |
-| VTST binary, polishing near convergence | `IBRION=3` + `POTIM=0` + `IOPT=1` (LBFGS) | fastest final convergence; start it once max tangential force is ~0.1 eV/A |
+| VTST binary, NEB | `IBRION=3` + `POTIM=0` + `IOPT=1` (LBFGS) | THE NEB optimizer: the only one that optimizes the path globally, keeping spring coupling. Also the fix for the 2026-10-29 Pt(111) H2O-dissociation case where stock `IBRION=1` oscillated (dE sign flips) with one image stuck at 1.97 eV/A |
+| regular relaxation (single image), oscillating energy trace | `IBRION=3` + `POTIM=0` + `IOPT=7` (FIRE) or `IOPT=3` (QM) | robust image-by-image optimizers — **NEVER with `IMAGES`**: they drop the spring coupling. Observed 2026-10-29: an `IOPT=7` CI-NEB run let the path blow up 4.06 → 15.97 Å over 400 steps with energies scattering while `SPRING=-5` sat unread |
 
 **IOPT contract:** `IOPT` is honored only with `IBRION=3` AND `POTIM=0`. Any
 other pairing silently ignores `IOPT` and runs the stock optimizer — the job
 completes, so the misconfiguration usually costs the full `NSW` budget before
 it is noticed (the validator raises `VASP_IOPT_REQUIRES_IBRION3_POTIM0`).
+
+**Image-by-image optimizers (QM/FIRE) are not NEB-safe:** they optimize each
+replica against its own force without the spring coupling, so with `IMAGES`
+the images free-slide to their own local minima and the reaction path is
+destroyed while every step "looks converged" (the validator raises
+`VASP_NEB_IMAGEWISE_OPTIMIZER`).
 
 ### Continuation (restart) workflow
 

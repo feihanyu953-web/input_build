@@ -723,7 +723,7 @@ class TestVtstOptimizerRules(Case):
         self.assertIn("VASP_IOPT_REQUIRES_IBRION3_POTIM0", self.codes(findings))
 
     def test_iopt_full_contract_clean(self):
-        findings = vi.validate({"IOPT": ["7"], "IBRION": ["3"], "POTIM": ["0"],
+        findings = vi.validate({"IOPT": ["1"], "IBRION": ["3"], "POTIM": ["0"],
                                 "ENCUT": ["400"]}, task_override="neb")
         self.assertNotIn("VASP_IOPT_REQUIRES_IBRION3_POTIM0", self.codes(findings))
         self.assertNotIn("VASP_IBRION3_POTIM0_NO_IOPT", self.codes(findings))
@@ -742,10 +742,27 @@ class TestVtstOptimizerRules(Case):
         self.assertIn("VASP_NEB_STOCK_OPTIMIZER", self.codes(findings))
         self.assertEqual([f.level for f in findings if f.code == "VASP_NEB_STOCK_OPTIMIZER"], [vi.INFO])
 
-    def test_neb_fire_no_stock_hint(self):
-        findings = vi.validate({"IBRION": ["3"], "POTIM": ["0"], "IOPT": ["7"],
+    def test_neb_lbfgs_no_stock_hint(self):
+        findings = vi.validate({"IOPT": ["1"], "IBRION": ["3"], "POTIM": ["0"],
                                 "IMAGES": ["4"], "ENCUT": ["400"]})
         self.assertNotIn("VASP_NEB_STOCK_OPTIMIZER", self.codes(findings))
+
+    def test_neb_fire_errors(self):
+        findings = vi.validate({"IOPT": ["7"], "IBRION": ["3"], "POTIM": ["0"],
+                                "IMAGES": ["4"], "ENCUT": ["400"]})
+        self.assertIn("VASP_NEB_IMAGEWISE_OPTIMIZER", self.codes(findings))
+        self.assertEqual([f.level for f in findings
+                          if f.code == "VASP_NEB_IMAGEWISE_OPTIMIZER"], [vi.ERROR])
+
+    def test_neb_qm_errors(self):
+        findings = vi.validate({"IOPT": ["3"], "IBRION": ["3"], "POTIM": ["0"],
+                                "IMAGES": ["4"], "ENCUT": ["400"]})
+        self.assertIn("VASP_NEB_IMAGEWISE_OPTIMIZER", self.codes(findings))
+
+    def test_fire_regular_relax_ok(self):
+        findings = vi.validate({"IOPT": ["7"], "IBRION": ["3"], "POTIM": ["0"],
+                                "ENCUT": ["400"]})
+        self.assertNotIn("VASP_NEB_IMAGEWISE_OPTIMIZER", self.codes(findings))
 
 
 if __name__ == "__main__":
