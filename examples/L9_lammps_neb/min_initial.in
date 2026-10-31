@@ -1,0 +1,54 @@
+# ==============================================================================
+# LAMMPS Input Script | Endpoint minimization (IS) - Cu adatom on Cu(100)
+# input_build lammps_minimize template; classroom NEB demo
+# Run on the m9 login node (seconds): lmp_intel_cpu_intelmpi -in in.min_initial
+# Chain contract: same constraints (bottom 2 planes frozen) as in.neb
+# ==============================================================================
+
+# ==============================================================================
+# 1. SIMULATION ENVIRONMENT
+# ==============================================================================
+units           metal
+atom_style      atomic
+boundary        p p p
+atom_modify     map array sort 0 0.0
+
+# ==============================================================================
+# 2. SYSTEM SETUP
+# ==============================================================================
+read_data       initial.data
+
+# ==============================================================================
+# 3. FORCE FIELD (funcfl single-element EAM: 3-arg pair_coeff, NO element symbol)
+# ==============================================================================
+pair_style      eam
+pair_coeff      * * Cu_u3.eam
+
+# ==============================================================================
+# 4. CONSTRAINTS (bottom 2 atomic planes; planes at 15.00/16.805 A)
+# ==============================================================================
+region          bottomz block INF INF INF INF INF 16.86 units box
+group           bottom region bottomz
+fix             1 bottom setforce 0.0 0.0 0.0
+
+# ==============================================================================
+# 5. ENERGY MINIMIZATION (multi-stage: sd clears bad contacts, cg refines)
+# ==============================================================================
+min_style       sd
+minimize        1.0e-4 1.0e-6 1000 10000
+
+min_style       cg
+minimize        1.0e-6 1.0e-8 2000 20000
+
+# ==============================================================================
+# 6. OUTPUT
+# ==============================================================================
+write_data      initial_min.data
+
+thermo_style    custom step pe press vol
+thermo          50
+run             0
+
+# ==============================================================================
+# END OF INPUT
+# ==============================================================================

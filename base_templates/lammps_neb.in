@@ -49,10 +49,41 @@ write_restart   neb_initial.restart
 thermo          100
 
 # neb etol ftol N1 N2 Nevery <file-style> [verbosity]
-#   etol/ftol  : energy / force tolerances (stopping criteria)
-#   N1/N2      : max iterations / max force evaluations
-#   Nevery     : output interval
-#   final <file>: final-state coords (alternatives: each <file>, none)
+#   etol/ftol  : energy / force tolerances (stopping criteria; ftol is the
+#                authoritative one — it includes the inter-replica spring
+#                forces, etol does not)
+#   N1/N2      : stage-1 (MEP) / stage-2 (climbing image) max iterations —
+#                the climbing image is BUILT IN and starts automatically
+#                once stage 1 converges; no keyword selects it
+#   Nevery     : output interval (per-replica energies, RD, EBF/EBR barriers)
+#
+# FILE-STYLE ROUTING (decide from the transition complexity, not by habit):
+#   final <file>  — ONLY the last replica's coordinates are supplied; the
+#       intermediate replicas are linearly interpolated in memory. Use for
+#       small single-event transitions (adatom hops, H site swaps) where a
+#       straight-line path cannot cut through or overlap atoms.
+#   each <file>   — one coordinate file per intermediate replica (pair with
+#       `variable i equal part`). Use for large / multi-atom rearrangements:
+#       feed images from ASE IDPP, a coarse previous NEB run, or high-
+#       temperature MD frames when linear interpolation would cross atoms.
+#   none          — no files; every replica already holds its coordinates
+#       (restart / continuation of a previous NEB).
+#
+# IMAGE COUNT (set by N in -partition NxM on the mpirun line — NOT in this
+#   file): initial estimate = moving-atom displacement / ~0.8 A (classic
+#   spacing convention); then confirm with an image-count convergence check
+#   (rerun with N-2 / N / N+2 images; stop when E_BF stops moving). Post-run
+#   sanity: mean image spacing = RDT/(N-1) in the master log; well above
+#   ~1 A means too few images. Keep the replica count, mpirun -np, and any
+#   `variable u uloop N` dump counter consistent.
+#
+# ENDPOINT CHAIN CONTRACT: both endpoints must be pre-minimized by separate
+#   minimize runs (e.g. base_templates/lammps_minimize.in) under the SAME
+#   constraints (same fix setforce groups) as this NEB run. coords.final is
+#   extracted from the minimized FS endpoint (write_data, then keep the
+#   "ID x y z" columns — beware the Velocities section that write_data
+#   appends after a minimize). coords.final format: first line = atom
+#   count, then one "ID x y z" line per atom (IDs match the data file).
 neb             1.0e-3 1.0e-5 1000 1000 100 final coords.final
 
 # ==============================================================================

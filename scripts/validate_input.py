@@ -1705,12 +1705,17 @@ H_MASS_CAP = 1.008 * 1.10
 
 
 class LammpsData:
-    """Parsed LAMMPS data file: header counts + Masses section."""
+    """Parsed LAMMPS data file: header counts, Masses, Atoms-section usage."""
 
-    def __init__(self, natoms, ntypes, masses):
+    def __init__(self, natoms, ntypes, masses, atom_types_used=None,
+                 atoms_entries=None, atoms_style=None):
         self.natoms = natoms    # int or None
         self.ntypes = ntypes    # int or None
         self.masses = masses    # {type_id(int): mass(float)} or None (no Masses)
+        # Atoms-section facts (None when that section was not parsed):
+        self.atom_types_used = atom_types_used   # set(int) of type values seen
+        self.atoms_entries = atoms_entries       # int: entries counted in Atoms
+        self.atoms_style = atoms_style           # str or None: "Atoms # <style>"
 
     @property
     def has_h(self):
@@ -1722,14 +1727,18 @@ class LammpsData:
 
 
 def parse_lammps_data(path):
-    """Parse a LAMMPS data file: `N atoms`, `N atom types`, and the Masses
-    section. Returns LammpsData. Raises ValueError when nothing data-file-like
+    """Parse a LAMMPS data file: `N atoms`, `N atom types`, the Masses
+    section, and the Atoms section (entry count + type values used).
+    Returns LammpsData. Raises ValueError when nothing data-file-like
     is found, so callers can WARN instead of silently skipping data-aware
     checks (Phase C --data implementation)."""
     with open(path, encoding="utf-8", errors="replace") as f:
         lines = f.read().splitlines()
     natoms = ntypes = None
     masses = None
+    atom_types_used = None
+    atoms_entries = None
+    atoms_style = None
     i = 0
     while i < len(lines):
         line = lines[i].split("#", 1)[0].strip()
@@ -1762,11 +1771,53 @@ def parse_lammps_data(path):
                 masses[int(toks[0])] = _num(toks[1])
                 i += 1
             continue
+        if line.split()[:1] == ["Atoms"]:
+            # Parse the section to (a) count entries against the declared
+            # `N atoms` and (b) collect type values for the 1..ntypes range
+            # check. Both guard runtime-verified read_data aborts: atom type 0
+            # (observed from an ASE-written single-element data file) and
+            # entries appended after a trailing blank line, which silently
+            # terminates the section ('Did not assign all atoms correctly').
+            sm = re.search(r"#\s*(\S+)", lines[i])
+            atoms_style = sm.group(1) if sm else None
+            types_used = set()
+            entries = 0
+            i += 1
+            while i < len(lines):
+                body = lines[i].split("#", 1)[0].strip()
+                if not body:
+                    i += 1
+                    if entries:
+                        break      # blank line after the entries: section over
+                    continue       # blank line(s) between header and entries
+                toks = body.split()
+                if not re.fullmatch(r"\d+", toks[0]):
+                    break          # next section header (Velocities, ...)
+                entries += 1
+                # Type column: index 1 for id-type-first styles (atomic:
+                # id type x y z; charge: id type q x y z). Styles carrying a
+                # molecule-ID column (full, mol, ...) place the type elsewhere
+                # — skip the range check there rather than misread the
+                # molecule number as a type.
+                if (atoms_style in _ATOM_TYPE_COLUMN
+                        and len(toks) >= 2
+                        and re.fullmatch(r"\d+", toks[1])):
+                    types_used.add(int(toks[1]))
+                i += 1
+            atom_types_used = types_used
+            atoms_entries = entries
+            continue
         i += 1
     if natoms is None and ntypes is None and masses is None:
         raise ValueError("no 'N atoms', 'N atom types' or Masses section found — "
                          "not a recognizable LAMMPS data file")
-    return LammpsData(natoms, ntypes, masses)
+    return LammpsData(natoms, ntypes, masses, atom_types_used=atom_types_used,
+                      atoms_entries=atoms_entries, atoms_style=atoms_style)
+
+
+# Styles whose Atoms line carries the atom type in column index 1
+# (0-based, after the atom ID). Runtime-verified abort: type 0.
+_ATOM_TYPE_COLUMN = {"atomic", "charge"}
 
 
 _LAMMPS_INTEGRATOR_STYLES = {"nve", "nvt", "npt", "nph"}
@@ -2076,6 +2127,27 @@ def validate_lammps(cmds, raw_text, task=None, data=None):
                         "LAMMPS rejects pressure coupling along non-periodic dimensions "
                         "— barostat only the periodic axes (never the slab vacuum "
                         "direction) (docs.lammps.org/fix_nh.html)")
+
+    # --- Data-file structural checks (runtime-verified read_data aborts) ---
+    if data is not None and data.atom_types_used and data.ntypes is not None:
+        bad_types = sorted(t for t in data.atom_types_used
+                           if t < 1 or t > data.ntypes)
+        if bad_types:
+            add(ERROR, "LAMMPS_DATA_ATOM_TYPE_RANGE",
+                f"data file uses atom type(s) {bad_types} outside 1..{data.ntypes} "
+                f"(declared '{data.ntypes} atom types'); LAMMPS aborts read_data "
+                "with 'Invalid atom type' (observed: ASE-written single-element "
+                "data files numbering types from 0)")
+    if (data is not None and data.atoms_entries is not None
+            and data.natoms is not None
+            and data.atoms_entries != data.natoms):
+        add(ERROR, "LAMMPS_DATA_ATOM_COUNT_MISMATCH",
+            f"data file declares {data.natoms} atoms but the Atoms section "
+            f"holds {data.atoms_entries} entries; read_data fails with 'Did not "
+            "assign all atoms correctly' or 'Unexpected end of data file' "
+            "(observed: entries appended after a trailing blank line, which "
+            "terminates the Atoms section — append new atoms to the LAST atom "
+            "line, not after the blank line)")
 
     # --- Large timestep without bond constraints (SHAKE/rigid reminder) ---
     # Evaluate each executed MD segment with the timestep/fixes that were active

@@ -765,5 +765,70 @@ class TestVtstOptimizerRules(Case):
         self.assertNotIn("VASP_NEB_IMAGEWISE_OPTIMIZER", self.codes(findings))
 
 
+# ---------------------------------------------------------------------------
+
+class TestLammpsDataStructuralChecks(Case):
+    """--data deep checks: Atoms-section type range and entry count.
+
+    Both guard runtime-verified read_data aborts observed 2026-10-31 on a
+    real Cu(100) NEB case: atom type 0 from an ASE-written single-element
+    data file ('Invalid atom type'), and endpoints appended after a
+    trailing blank line that silently terminates the Atoms section ('Did
+    not assign all atoms correctly' - declared 1735, parser saw 1734).
+    """
+
+    MIN_IN = ("units metal\n"
+              "atom_style atomic\n"
+              "boundary p p p\n"
+              "read_data system.data\n"
+              "pair_style eam\n"
+              "pair_coeff * * Cu_u3.eam\n"
+              "min_style cg\n"
+              "minimize 0.0 1.0e-4 100 1000\n")
+
+    def _codes(self, data_text):
+        in_path = self.write("in.minimize", self.MIN_IN)
+        data_path = self.write("system.data", data_text)
+        findings = vi.validate_lammps_one(in_path, data_path=data_path)
+        return [f.code for f in findings]
+
+    def test_atom_type_zero_flagged(self):
+        data = ("2 atoms\n1 atom types\n"
+                "\nMasses\n\n1 63.546\n\n"
+                "Atoms # atomic\n\n"
+                "1 1 0.0 0.0 0.0\n"
+                "2 0 1.0 0.0 0.0\n")          # type 0 -> runtime abort
+        self.assertIn("LAMMPS_DATA_ATOM_TYPE_RANGE", self._codes(data))
+
+    def test_entry_count_mismatch_flagged(self):
+        data = ("3 atoms\n1 atom types\n"
+                "\nMasses\n\n1 63.546\n\n"
+                "Atoms # atomic\n\n"
+                "1 1 0.0 0.0 0.0\n"
+                "2 1 1.0 0.0 0.0\n\n")       # declares 3, holds 2
+        self.assertIn("LAMMPS_DATA_ATOM_COUNT_MISMATCH", self._codes(data))
+
+    def test_wellformed_data_clean(self):
+        data = ("2 atoms\n1 atom types\n"
+                "\nMasses\n\n1 63.546\n\n"
+                "Atoms # atomic\n\n"
+                "1 1 0.0 0.0 0.0\n"
+                "2 1 1.0 0.0 0.0\n")
+        codes = self._codes(data)
+        self.assertNotIn("LAMMPS_DATA_ATOM_TYPE_RANGE", codes)
+        self.assertNotIn("LAMMPS_DATA_ATOM_COUNT_MISMATCH", codes)
+
+    def test_full_style_skips_type_range_check(self):
+        # full style puts molecule-ID in column 1 - the type-range check
+        # must not misread it; a mol id outside 1..ntypes is legitimate.
+        data = ("2 atoms\n1 atom types\n"
+                "\nMasses\n\n1 63.546\n\n"
+                "Atoms # full\n\n"
+                "1 7 1 0.0 0.0 0.0\n"
+                "2 7 1 1.0 0.0 0.0\n")
+        codes = self._codes(data)
+        self.assertNotIn("LAMMPS_DATA_ATOM_TYPE_RANGE", codes)
+
+
 if __name__ == "__main__":
     unittest.main()

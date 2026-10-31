@@ -1,0 +1,36 @@
+# ==============================================================================
+# LAMMPS Input Script | Endpoint minimization (FS) - Cu adatom on Cu(100)
+# input_build lammps_minimize template; classroom NEB demo
+# Identical to in.min_initial except the data file (FS endpoint): the adatom
+# starts at the adjacent hollow, 2.553 A from the IS hollow.
+# ==============================================================================
+
+units           metal
+atom_style      atomic
+boundary        p p p
+atom_modify     map array sort 0 0.0
+
+read_data       final.data
+
+pair_style      eam
+pair_coeff      * * Cu_u3.eam
+
+region          bottomz block INF INF INF INF INF 16.86 units box
+group           bottom region bottomz
+fix             1 bottom setforce 0.0 0.0 0.0
+
+min_style       sd
+minimize        1.0e-4 1.0e-6 1000 10000
+
+min_style       cg
+minimize        1.0e-6 1.0e-8 2000 20000
+
+write_data      final_min.data
+
+thermo_style    custom step pe press vol
+thermo          50
+run             0
+
+# ==============================================================================
+# END OF INPUT
+# ==============================================================================

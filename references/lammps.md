@@ -115,6 +115,68 @@ run             200000                     # 100 ps production
 # ==============================================================================
 ```
 
+## NEB（nudged elastic band）决策树
+
+实测锚点：`examples/L9_lammps_neb`（Cu adatom hop on Cu(100)，2026-10-31
+m9 30Mar2026 + REPLICA 包实测：8 像 × 8 核约 1 s，E‡ = 0.5015 eV，
+EBF = EBR（对称路径），50 + 57 步收敛）。
+
+### file-style 路由（按过渡复杂度决策，不按习惯）
+
+| file-style | 中间像来源 | 适用 |
+|---|---|---|
+| `final <file>` | 内置线性插值（内存生成，无中间文件） | 小位移单一基元步骤（adatom hop、H 位间转移），直线插值不穿模 |
+| `each <file>` | 每个中间像一个坐标文件（配 `variable i equal part`） | 大位移/多原子协同重排：喂 ASE IDPP、上一轮粗 NEB 路径或高温 MD 采样帧 |
+| `none` | 不供文件，各像坐标已就位 | restart / 续跑上一条 NEB 路径 |
+
+事前检查：移动原子直线位移大，或路径可能穿越其他原子（质子跨氢键网络、
+构象翻转、扩散绕行）→ 不要用 `final`，改手工供像。
+
+### 像数两段法
+
+1. **先验估计**：移动原子位移 ÷ ~0.8 Å（经典间距惯例）向上取整；
+2. **收敛实验拍板**：N−2 / N / N+2 像重跑对比 EBF，不随像数漂移即收敛、
+   取最稀一组——LAMMPS/MLIP 下每组秒-分钟级，实验可负担；DFT 里
+   dist/0.8 即终点，在这里只是起点。
+
+事后体检：主 log 的 `RDT/(N-1)` = 平均像间距，明显大于 ~1 Å → 像太少。
+
+### 运行契约
+
+- 像数只由 `mpirun -partition NxM` 的 N 决定（neb 命令无像数参数）；
+  `mpirun -np`、`#SBATCH -n`、`variable u uloop N`（per-replica dump 计数）
+  三处与像数同步
+- REPLICA 包必须在构建里（`lmp -h` 的 Installed packages 查；注意部分
+  集群二进制名非 `lmp`，如 m9 的 `lmp_intel_cpu_intelmpi`）
+- 两端点先各自最小化（`lammps_minimize` 模板），约束组（fix setforce 等）
+  与 NEB 输入一字不差；NEB 不算端点弛豫
+- coords.final：首行原子数 + 每行 `ID x y z`；从最小化后的 FS data 提取时
+  注意 write_data 在 minimize 后追加 Velocities 段（4 列行），提取脚本
+  遇非数字段头必须停止（见 `examples/L9_lammps_neb/coords_final_from_data.py`）
+
+### 读 log
+
+- 每 Nevery 步一行、25 列：`RD_i`（各像归一化反应坐标 0→1）与 `PE_i`
+  （各像势能）从第 10 列起两列一组交替；`EBF`/`EBR` = forward/backward
+  能垒（max PE − 端点 PE），直接读；对称路径 EBF 必须等于 EBR（学生自检点）
+- 两个表 = 两阶段：阶段 1（MEP）收敛后出现 `Climbing replica = k` 横幅，
+  阶段 2 自动把最高能像推上鞍点；step 在第二表继续累计，同一步数出现
+  两次是阶段起点快照、不是重复计算
+- 判敛看 MaxReplicaForce（含弹簧力）< ftol；etol 不含弹簧力、可置 0
+
+### 实测坑（2026-10-31 Cu(100) 案例，validator 规则已布防）
+
+1. funcfl 单元素 EAM 的 `pair_coeff` 只有 3 个参数（无元素符号）——
+   多写元素符号直接 abort（模板 `lammps_neb.in` 注释有载）
+2. data 文件 Atoms 段内出现空行即截断：向外部工具产出的 data 追加原子
+   时必须追加到最后一个原子行之后（此类文件常带尾随空行）；违者
+   read_data 报 'Did not assign all atoms correctly' →
+   validator `LAMMPS_DATA_ATOM_COUNT_MISMATCH`
+3. ASE 写出的单元素 data 从 type 0 编号 → 'Invalid atom type' →
+   validator `LAMMPS_DATA_ATOM_TYPE_RANGE`（full 等带 molecule-ID 列的
+   style 自动豁免，避免把分子编号误读为 type）
+
+
 ## Analysis & Water (Phase 2 snippets)
 
 Snippet 组合系统：以下功能块位于 `../modifiers/lammps/*.snip`，按需粘贴到

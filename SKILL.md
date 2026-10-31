@@ -93,7 +93,7 @@ Baselines — templates are verified against these versions; anything older is u
 |---|---|---|---|
 | VASP | ≥ 6.3 | 6.5.1 + VTST | `LCLIMB` / CI-NEB is a **VTST extension**, not a stock VASP tag — ask which binary runs the job; `IOPT` optimizers are likewise VTST-only and additionally require `IBRION=3` + `POTIM=0`; VASPsol requires a patched binary; `RANDOM_SEED` takes three integers |
 | CP2K | ≥ 2024.3 | 2026.1 | **2026.2 changes (gated):** `&CELL_OPT/TYPE` removed (DIRECT_CELL_OPT is the default — omit the keyword for 2026.2+); Mulliken `DFT+U` supports k-points from 2026.2 — pre-2026.2 DFT+U must omit `&KPOINTS` entirely (even `SCHEME GAMMA` aborts with "Method not implemented for k-points"; omitting = Gamma point); `&PLANAR_AVERAGED_V_HARTREE` is a 2026.2-dev trunk addition — on 2026.1 use `&DFT/&PRINT/&V_HARTREE_CUBE` + external planar averaging (2026.1 aborts "unknown subsection") |
-| LAMMPS | ≥ 22Jul2025 | 22 Jul 2025 Update 3 | `pair_style reax/c` was removed → use `reaxff` (plus a charge-carrying atom style and `fix qeq/reaxff`); package features (ELECTRODE, RIGID, PLUMED, ML-*) need the corresponding compiled package — check `lmp -h` |
+| LAMMPS | ≥ 22Jul2025 | 22 Jul 2025 Update 3 | `pair_style reax/c` was removed → use `reaxff` (plus a charge-carrying atom style and `fix qeq/reaxff`); package features (ELECTRODE, RIGID, PLUMED, ML-*, **REPLICA for `neb`**) need the corresponding compiled package — check `lmp -h` |
 
 Resolve the Step-3 version/build question **before** rendering a template; never mix syntax from different versions or external patches in one unconditional input.
 
@@ -202,7 +202,7 @@ MPI 秩数由 submit 侧 `-n`/`mpirun -np` 决定，INCAR 的 NCORE/KPAR 只负�
 - Thermostat style / heating schedule? → `ensemble_langevin` (fix nve + fix langevin) and/or `temp_ramp` (0.1–1 K/ps)
 - Confined liquid without vacuum? → `wall_slab` snippet (fix wall/lj93)
 - Enhanced sampling? → `lammps_plumed` template (fix plumed + plumed.dat; one fix only)
-- Reaction path / barrier? → `lammps_neb` template (replica run `-partition NxM`; min_style quickmin/fire only)
+- Reaction path / barrier? → `lammps_neb` template (replica run `-partition NxM`; min_style quickmin/fire only); **route the file-style from the transition complexity, not by habit** — `final` (built-in linear interpolation) for small single-event hops, `each` (images from ASE IDPP / coarse NEB / MD frames) for large multi-atom rearrangements, `none` for continuation; size the image count from displacement/~0.8 Å then confirm with an image-count convergence check — full decision tree in `references/lammps.md` (§ NEB)
 
 **CP2K:**
 - Functional? → PBE / PBE0 / HSE06 / R2SCAN

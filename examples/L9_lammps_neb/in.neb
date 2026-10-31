@@ -1,33 +1,54 @@
 # ==============================================================================
 # L9 · LAMMPS NEB (fix neb + neb command) — replica run required
+# Verified end-to-end 2026-10-31: Cu adatom hop on Cu(100), 4-fold hollow ->
+# adjacent hollow (2.553 A = a/sqrt(2)); m9 cluster, LAMMPS 30Mar2026 REPLICA
+# package, 8 replicas x 8 cores, wall time ~1 s, E_BF = E_BR = 0.5015 eV
+# (symmetric bridge path), converged in 50 + 57 NEB iterations.
 # ==============================================================================
 # Launch (N replicas x M cores per replica):
-#   mpirun -np N*M lmp -partition NxM -in in.neb
-# e.g. 8 replicas, 1 core each:  mpirun -np 8 lmp -partition 8x1 -in in.neb
+#   mpirun -np N*M lmp_intel_cpu_intelmpi -in in.neb -partition NxM
+# THIS CASE:  mpirun -np 64 ... -partition 8x8   (8 replicas x 8 cores)
+# The replica count is set ONLY by -partition here — the `neb` command has no
+# image-count argument; keep -partition, mpirun -np and `variable u uloop 8`
+# below consistent when changing it.
 # ==============================================================================
 
 units           metal
 atom_style      atomic
 boundary        p p p
-atom_modify     map array           # REQUIRED by fix neb
+atom_modify     map array sort 0 0.0    # REQUIRED by fix neb; sort off for
+                                        # replica determinism
 
-read_data       initial.data        # NOTE: 替换为你的初态 data 文件
+# --- System: minimized IS endpoint (every replica reads the same file) ---
+read_data       initial_min.data        # pre-minimized IS (see min_initial.in)
 
-# --- Force field ---
-# >>> USER: insert pair_style/pair_coeff here <<<
-# pair_style      eam                 # funcfl 单元素格式（如 Al_u3.eam）用 eam；
-# pair_coeff      * * Al_u3.eam       # funcfl 仅 3 参数（无元素符号）；setfl
-                                      #（*.eam.alloy）才用 eam/alloy + 元素符号
+# --- Force field (verified case: funcfl single-element EAM, 3-arg coeff) ---
+pair_style      eam
+pair_coeff      * * Cu_u3.eam           # funcfl = 3 args, NO element symbol;
+                                        # setfl (*.eam.alloy) takes symbols
 
-neighbor        2.0 bin
-neigh_modify    every 1 delay 0 check yes
-timestep        0.005               # NEB timestep ~10x a regular MD step is OK
+# --- Constraints: MUST match the endpoint minimization chain (min_*.in) ---
+region          bottomz block INF INF INF INF INF 16.86 units box
+group           bottom region bottomz
+fix             1 bottom setforce 0.0 0.0 0.0
 
-min_style       quickmin            # or fire — cg/sd/hftn are INVALID with NEB
-fix             1 all neb 1.0       # Kspring = 1.0 eV/A^2 (units metal)
+# --- NEB spring: attach ONLY to the moving group (here: the adatom, id 1735);
+#     every other atom just relaxes locally under the physical forces ---
+group           adatom id 1735
+fix             2 adatom neb 1.0        # Kspring = 1.0 eV/A^2 (units metal)
 
-thermo          100
+variable        u uloop 8               # per-replica dump counter = replica count
+dump            1 all custom 100 neb.$u.dump id type x y z
 
-# neb etol ftol N1 N2 Nevery <file-style> [verbosity]
-# final coords.final : final-state coords file (alternatives: each <file>, none)
-neb             1.0e-3 1.0e-5 1000 1000 100 final coords.final
+timestep        0.01                    # damped-dynamics step, ~10x an MD step
+
+min_style       fire                    # or quickmin — cg/sd/hftn are INVALID
+                                        # with NEB (line searches cannot stay
+                                        # synchronized across replicas)
+
+#                       etol  ftol    N1    N2  Nevery file-style file
+neb              0.0  1.0e-3  1000  1000    50  final coords.final
+# ftol is the authoritative convergence criterion (includes spring forces);
+# N2 = built-in climbing-image stage — the highest-energy replica is driven to
+# the saddle automatically once stage 1 converges (log banner: "Climbing
+# replica = k"). Read the barrier from the master log's EBF/EBR columns.
